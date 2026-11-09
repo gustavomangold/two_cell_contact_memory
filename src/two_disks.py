@@ -38,11 +38,11 @@ REORIENT_ON_CONTACT = False         # Fig. 4 excludes contact-induced turning
 PERSISTENCE_TIME = 2.0
 DT = 0.00001                        # Resolve the faster angular diffusion
 
-STEP_SEPARATION = 50                # Same sampling interval as before: 0.005
-STEADY_STATE_STEPS = 2000000        # Warm-up duration: 200 at the current DT
+STEP_SEPARATION = 50                # Separation sampling stride, in integration steps
+STEADY_STATE_STEPS = 2000000        # Steps discarded before measurements
 
 DURATION = 100.0
-SAVE_EVERY = 2000                    # Same frame interval as before: 0.02
+SAVE_EVERY = 2000                    # Animation frame stride, in integration steps
 SEED = 7
 MU = 1
 
@@ -54,22 +54,24 @@ def repulsive_force(overlap, normal, strength=None):
     return strength * max(0.0, overlap) * normal
 
 
-def simulate():
-    """Return times, positions (frame, disk, xy), and green persistence flags."""
+def simulate(diagnostics=None):
+    """Return times, positions, persistence flags, separations; optionally collect statistics."""
     if _simulate_kernel is None:
-        return _simulate_python()
+        return _simulate_python(diagnostics)
     return _simulate_kernel(
         np.random.default_rng(SEED), ARENA_DIAMETER, SPEED, REPULSION,
         ANGULAR_DIFFUSION, PERSISTENCE_TIME, DT, DURATION,
         STEADY_STATE_STEPS, STEP_SEPARATION, SAVE_EVERY, MU,
         TRANSLATIONAL_DIFFUSION, PERSISTENT_DIFFUSION,
-        REORIENT_ON_CONTACT, WALL_REPULSION,
+        REORIENT_ON_CONTACT, WALL_REPULSION, diagnostics,
     )
 
 
-def _simulate_python():
+def _simulate_python(diagnostics=None):
     """Readable NumPy reference and fallback for the compiled version."""
     rng = np.random.default_rng(SEED)
+    if diagnostics is not None:
+        from contact_stats import _observe_python
     # Disk 0 is green, disk 1 is red; initially they face each other.
     positions = np.array([[-1.0, 0.0], [1.0, 0.0]])
     angles = np.array([0.0, np.pi])
@@ -81,6 +83,7 @@ def _simulate_python():
     separations = []
 
     for step in range(1, round(DURATION / DT) + STEADY_STATE_STEPS + 1):
+        activated = False
         persistent_left = max(0.0, persistent_left - DT)
         separation = positions[0] - positions[1]
         distance = np.linalg.norm(separation)
@@ -97,6 +100,10 @@ def _simulate_python():
             # Like the repo, contacts do not refresh an active persistence timer.
             if persistent_left == 0.0:
                 persistent_left = PERSISTENCE_TIME
+                activated = PERSISTENCE_TIME > 0
+
+        if diagnostics is not None:
+            _observe_python(diagnostics, step, positions, angles, persistent_left, activated)
 
         disk_distances = np.linalg.norm(positions, axis=1)
 

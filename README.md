@@ -29,6 +29,8 @@ and GIF export also needs Pillow.
 | `src/make_gif.py` | Contact GIF with displacement-velocity arrows |
 | `src/sweep_storage.py` | Log-window storage, resume checks, legacy CSV compaction |
 | `src/velocity_arrows.py` | Shared arrow drawing helpers |
+| `src/contact_stats.py` | Optional contact, return, activation and wall diagnostics |
+| `src/plot_contact_stats.py` | Survival and activation-conditioned motion plots |
 
 The simulation implementations and their defaults are unchanged. The separate
 L/tau sweep wrappers and plotting scripts have been replaced by these commands.
@@ -92,3 +94,16 @@ units (`1e-5 * 2,000,000`); use 20,000,000 steps for a warm-up of 200.
 Compact old raw sweep CSVs in place (without rerunning):
 `python src/sweep_storage.py path/to/sweep`. Run checks with
 `python -m unittest discover`. Each script supports `--help`.
+
+## Contact diagnostics
+
+```bash
+python src/contact_stats.py --L 3 --tau 0 0.001 1 2 --samples 50 --workers 10
+python src/plot_contact_stats.py --data-dir data/contact_stats/no_reorient --L 3
+```
+
+Measurements are optional and leave trajectories unchanged. They resolve every
+integration step and save compact per-seed files, with resume support. The three
+plots show contact survival, return survival, and distance changes after activation
+split by initial heading; tau=0 uses contact entries as its reference events.
+See [measurement definitions and options](docs/contact_statistics.md).

@@ -6,6 +6,7 @@ The readable NumPy implementation remains in two_disks.py as the fallback.
 
 import numpy as np
 from numba import njit
+from contact_stats import observe_kernel
 
 
 @njit(cache=True)
@@ -13,7 +14,7 @@ def simulate_kernel(rng, arena, speed, repulsion, angular_diffusion,
                     persistence_time, dt, duration, steady_steps,
                     step_separation, save_every, mobility,
                     translational_diffusion=0.0, persistent_diffusion=0.0,
-                    reorient_on_contact=True, wall_repulsion=30.0):
+                    reorient_on_contact=True, wall_repulsion=30.0, diagnostics=None):
     observation_steps = round(duration / dt)
     total_steps = observation_steps + steady_steps
     # Allocate once, rather than creating small arrays on every time step.
@@ -30,6 +31,7 @@ def simulate_kernel(rng, arena, speed, repulsion, angular_diffusion,
     frame, sample = 1, 0
 
     for step in range(1, total_steps + 1):
+        activated = False
         persistent_left = max(0.0, persistent_left - dt)
         dx = positions[0, 0] - positions[1, 0]
         dy = positions[0, 1] - positions[1, 1]
@@ -46,6 +48,10 @@ def simulate_kernel(rng, arena, speed, repulsion, angular_diffusion,
                 angles[0], angles[1] = away, away + np.pi
             if persistent_left == 0.0:
                 persistent_left = persistence_time
+                activated = persistence_time > 0
+
+        if diagnostics is not None:
+            observe_kernel(diagnostics, step, positions, angles, persistent_left, activated)
 
         for i in range(2):
             x, y = positions[i, 0], positions[i, 1]
