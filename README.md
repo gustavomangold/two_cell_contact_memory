@@ -107,3 +107,18 @@ integration step and save compact per-seed files, with resume support. The three
 plots show contact survival, return survival, and distance changes after activation
 split by initial heading; tau=0 uses contact entries as its reference events.
 See [measurement definitions and options](docs/contact_statistics.md).
+
+## No-memory control
+
+```bash
+bash src/sweep_no_memory.sh --samples 50 --workers 10
+```
+
+This collects the contact diagnostics with tau=0 and reorientation off, for
+L=2.24, 3, 4, 6 and baseline angular diffusion Dr=1, 10, 100, 360. Other model
+parameters stay fixed. Samples run in parallel and completed runs are resumed.
+Results go to `data/contact_stats/no_memory/Dr.../L..._tau0/`. Edit the two arrays
+in the script to change the grid; options such as `--duration` and
+`--steady-state-steps` pass through. The script uses `.venv/bin/python` when
+available, or `SIM_PYTHON` if set. Plot a control point, for example, with
+`python src/plot_contact_stats.py --data-dir data/contact_stats/no_memory/Dr360 --L 3`.

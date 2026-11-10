@@ -229,6 +229,8 @@ def main():
     parser.add_argument("--workers", type=int, default=10)
     parser.add_argument("--seed", type=int, default=simulation.SEED)
     parser.add_argument("--reorient", action="store_true")
+    parser.add_argument("--angular-diffusion", type=float, default=simulation.ANGULAR_DIFFUSION,
+                        help="Baseline rotational diffusion for both disks (default: %(default)s)")
     parser.add_argument("--dt", type=float, default=simulation.DT)
     parser.add_argument("--duration", type=float, default=simulation.DURATION)
     parser.add_argument("--steady-state-steps", type=int, default=simulation.STEADY_STATE_STEPS)
@@ -239,12 +241,12 @@ def main():
     parser.add_argument("--trace-points", type=int, default=64)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    if (not all(np.isfinite(value) for value in [args.L, args.dt, args.duration, args.epsilon, args.near_wall, args.max_lag])
+    if (not all(np.isfinite(value) for value in [args.L, args.dt, args.duration, args.epsilon, args.near_wall, args.max_lag, args.angular_diffusion])
             or args.L <= 1 or min(args.dt, args.duration, args.max_lag) <= 0
-            or min(args.epsilon, args.near_wall, args.seed, args.steady_state_steps) < 0
+            or min(args.epsilon, args.near_wall, args.seed, args.steady_state_steps, args.angular_diffusion) < 0
             or min(args.samples, args.workers, args.lag_points, args.trace_points) < 1
             or round(args.duration / args.dt) < 1):
-        parser.error("Require L>1, positive times/counts and nonnegative epsilon/near-wall/seed/warm-up")
+        parser.error("Require L>1, positive times/counts and nonnegative angular-diffusion/epsilon/near-wall/seed/warm-up")
     try:
         taus = tau_grid(args.tau, args.tau_range) if args.tau or args.tau_range else [0., .001, 1., 2.]
     except ValueError as error:
@@ -255,7 +257,8 @@ def main():
     settings = {name: value for name, value in vars(simulation).items()
                 if name.isupper() and isinstance(value, (int, float))}
     settings.update(ARENA_DIAMETER=args.L, REORIENT_ON_CONTACT=args.reorient, DT=args.dt,
-                    DURATION=args.duration, STEADY_STATE_STEPS=args.steady_state_steps, SEED=args.seed)
+                    DURATION=args.duration, STEADY_STATE_STEPS=args.steady_state_steps, SEED=args.seed,
+                    ANGULAR_DIFFUSION=args.angular_diffusion)
     print(f"Backend: {'Numba' if simulation._simulate_kernel else 'NumPy'}", flush=True)
     with ProcessPoolExecutor(max_workers=min(args.workers, args.samples), mp_context=get_context("spawn")) as pool:
         for tau in taus:
