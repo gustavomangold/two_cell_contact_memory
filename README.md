@@ -33,6 +33,9 @@ and GIF export also needs Pillow.
 | `src/plot_contact_stats.py` | Survival and activation-conditioned motion plots |
 | `src/post_separation.py` | Optional post-separation measurement helpers |
 | `src/plot_post_separation.py` | Persistent excursions and fixed-time control plots |
+| `src/many_disks.py` | Same circular model with equal populations and variable N |
+| `src/sweep_size_scaling.py` | N=2,4,8,16,32 contact-time sweep |
+| `src/plot_size_scaling.py` | Compare contact-time curves across sizes |
 
 The simulation implementations and their defaults are unchanged. The separate
 L/tau sweep wrappers and plotting scripts have been replaced by these commands.
@@ -115,6 +118,17 @@ To measure motion after separation, add `--post-separation-time 1` to the
 diagnostic command. New data goes to `data/contact_stats/post_separation/no_reorient/`;
 plot it with `python src/plot_post_separation.py`. See the
 [post-separation guide](docs/post_separation.md) for examples and definitions.
+
+To compare the contact peak across particle numbers:
+
+```bash
+python src/sweep_size_scaling.py --samples 50 --workers 10
+python src/plot_size_scaling.py
+```
+
+This uses (N,L)=(2,3),(4,6),(8,12),(16,24),(32,48). Doubling diameter halves
+density; `--scaling constant-density` provides a separate density-controlled study.
+See [the size-scaling guide](docs/size_scaling.md) for plot definitions and options.
 
 ## No-memory control
 
