@@ -1,99 +1,107 @@
-# Contact diagnostics
+# Reading the contact plots
 
-Run from the repository root with the same NumPy/Numba environment as the sweeps.
-Matplotlib is needed only for plotting. The default `sweep.py` workflow is unchanged.
+**Start with `contact_fraction.png`.** It answers the simplest question:
+*For what percentage of the run are the two disks touching/overlapping?*
 
-```bash
-python src/contact_stats.py --L 3 --tau 0 0.001 1 2 --samples 50 --workers 10
-python src/plot_contact_stats.py --data-dir data/contact_stats/no_reorient --L 3
-```
-
-Use `--reorient` to measure the turning model; it saves to `data/contact_stats/reorient`.
-The runner also accepts `--tau-range START STOP STEP`, `--seed`, `--dt`,
-`--duration`, `--steady-state-steps` and `--output`. Increasing `--samples` adds
-independent seeds; rerunning skips complete files. Fixed settings are recorded
-in each parameter folder and must match when resuming. No simulation runs are
-started by the plotting command.
-
-## Definitions
-
-- **Contact fraction:** fraction of integration steps with center distance `r < 1`.
-- **Contact episodes:** start at `r < 1` and end at `r > 1 + epsilon` (default 0.01).
-  This hysteresis affects measurement only. `hysteresis_contact_fraction` includes
-  the short gaps bridged by hysteresis; `contact_fraction` uses the strict `r < 1` rule.
-- **Return episodes:** time from the end of one hysteretic contact to the next entry.
-  Events retain whether green was persistent at separation.
-- **Activations:** timer changes from zero to a positive duration. For tau=0 the
-  count is zero. Renewals are activations within an existing hysteretic contact,
-  distinguished from new encounters.
-- **Motion:** at each activation, keep the contact normal pointing from red to
-  green. `green_away` projects green displacement onto that normal; `red_away`
-  projects red displacement onto its negative. Positive means moving away from
-  the original partner. `delta_distance` is the change in center separation.
-- **Heading:** initial green propulsion heading dotted with that normal. Groups
-  are inward (`u < -0.5`), tangential (`-0.5 <= u <= 0.5`), outward (`u > 0.5`).
-  With reorientation enabled, the measured heading is after turning, as used
-  in the actual position update.
-- **Wall:** signed disk-surface clearance is `L/2 - 0.5 - |position|`; negative
-  means soft-wall penetration. Center-to-boundary distance is clearance + 0.5.
-  Wall-force fractions count steps with penetration and nonzero wall stiffness.
-  An encounter is near the wall if either disk has clearance <= `--near-wall`
-  (default 0.1), evaluated at activation or episode start.
-
-Statistics use pre-position-update states, after the timer/contact response.
-Times are relative to the end of warm-up. The observation window contains exactly
-`round(duration/dt)` steps, starting after `steady_state_steps`. Contacts and
-returns spanning the start/end of that window are flagged as censored.
-
-## Files and plots
-
-Each `data/contact_stats/no_reorient/L3_tau.../` folder contains:
-
-- `settings.json`: simulation parameters and diagnostic options.
-- `summary.csv`: one row per independent run, including contact/persistence/wall
-  fractions, activation/encounter rates, renewal fraction, and mean wall distances.
-- `sample_00001.npz`, etc.: compressed events, sparse traces, lag times, and response
-  accumulators. Each sample is saved atomically so an interrupted run can resume.
-
-NPZ keys `events` and `traces` have columns listed in `EVENT_COLUMNS` and
-`TRACE_COLUMNS` in `src/contact_stats.py`. Event kind 0 is contact, 1 is return;
-the two censoring flags distinguish incomplete observation from completed episodes.
-Traces save actual angles and remaining memory along with positions at up to
-64 log-spaced times, including the first and final observed states. Angles are
-propulsion headings, not the displacement arrows used in GIFs.
-
-Response accumulators have axes `[heading, wall, lag, statistic]`. Heading order
-is inward/tangential/outward; wall order is away/near. Statistic 0 is event count;
-the remaining entries are sums in `RESPONSE_NAMES` order. Divide each sum by its
-count to obtain that run's mean. The ring buffer stores only the lag horizon,
-not every position for the full simulation.
-
-Plots are saved under `figures/contact_stats/no_reorient/L3/`:
-`contact_survival.png`, `return_survival.png` (all, persistent and nonpersistent
-separations), and `delta_distance_all.png` (one panel per heading group).
-CSV files save the plotted curves and scalar means with SEM across independent
-seeds. Missing groups remain undefined; counts are retained for every lag.
-
-Survival uses Kaplan–Meier estimates, keeping right-censored episodes and excluding
-left-censored episodes whose full duration is unknown. Curves are averaged equally
-across seeds with data; they stop beyond each seed's observed follow-up. Shading
-is ±1 SEM across independent seeds, rather than treating correlated encounters as
-independent measurements. A single seed has no SEM estimate.
-
-Additional views and optional readable event/trace exports:
+Generate the plots from your existing data; this does not run more simulations:
 
 ```bash
-python src/plot_contact_stats.py --wall near --observable green_away
-python src/plot_contact_stats.py --wall away --observable red_away --export-events
+python src/plot_contact_stats.py --data-dir data/contact_stats/fig4/Dr360 --L 3
 ```
 
-`--wall` conditions on location at the reference event, not later wall encounters.
-All six motion/state observables are also exported in `motion_all.csv` (or
-`motion_near.csv`/`motion_away.csv`). To test sensitivity, repeat with a different
-`--epsilon` and a new output folder. `--max-lag` (default 2) sets the motion horizon;
-`--lag-points` (default 32) and `--trace-points` (default 64) control storage.
+For that command, open `figures/contact_stats/Dr360/L3/`.
+Every coloured line represents a different **contact-memory time tau**, not a
+particle. The shaded bands or error bars show uncertainty between independent runs.
+Time uses simulation units: with DT=0.00001, one time unit is 100,000 steps.
 
-For tau=0, motion is conditioned on new contact entries; positive tau uses actual
-activations, including renewals. These are different event ensembles. The control
-is useful descriptively, but is not a paired restart of identical encounter states.
-No replay or change to the contact-reactivation rule is introduced here.
+## 1. Time spent in contact: `contact_fraction.png`
+
+- **Horizontal axis:** the memory parameter tau used for the whole run.
+- **Vertical axis:** percentage of the observation time with center distance < 1 disk diameter.
+- **Dashed horizontal line:** the no-memory result, tau=0.
+
+A point at 40% means the disks were in contact for 40% of the measured run.
+Below the dashed line means less time in contact than without memory; above it
+means more. This plot measures how much time the pair spends together, rather
+than their average distance.
+
+This is the first plot to use when asking whether memory reduces unlike-particle
+association. It is a pair statistic, not the many-particle demixing index.
+
+## 2. How long one contact lasts: `contact_survival.png`
+
+**Imagine starting a stopwatch whenever a new contact begins.**
+
+- **Horizontal axis:** how much time has passed since that contact began.
+- **Vertical axis:** estimated percentage of contacts still ongoing at that time.
+
+For example, at x=1 and y=60%, about 60% of contacts last longer than one time
+unit. A higher curve means contacts tend to last longer. A faster fall means
+contacts end sooner. The curve should stay flat or fall; it should never rise.
+
+This is NOT the percentage of total simulation time in contact. A few very long
+contacts and many brief ones can give a different picture from plot 1.
+
+## 3. How long they stay apart: `return_survival.png`
+
+**Now start the stopwatch when a contact ends. Stop it when they meet again.**
+
+- **Horizontal axis:** time since separation.
+- **Vertical axis:** estimated percentage of returns that have not happened yet.
+
+At x=1 and y=60%, about 60% of separation episodes last longer than one time
+unit. A higher curve means the disks tend to stay apart longer.
+
+Read the left panel first: it includes all separations. The other panels split
+these by whether green's memory was still active when they separated. At tau=0,
+there are no events in the persistent-at-separation group.
+
+Higher curves in plot 2 mean **longer contact**. Higher curves in plot 3 mean
+**longer separation**. The same vertical direction has different meanings.
+
+## 4. What happens after activation: `delta_distance_all.png`
+
+**Set a new clock to zero when green's memory activates.**
+
+- **Horizontal axis:** time after that event, not time since the simulation began.
+- **Vertical axis:** current pair distance minus its value at that event, measured
+  in disk diameters. This is a change, not the absolute distance.
+
+A value of +0.2 means the centers are 0.2 disk diameters farther apart than at
+activation. A value of -0.2 means they are 0.2 disk diameters closer. It does not
+mean the distance itself is negative. Every curve starts at zero by definition.
+
+The panels distinguish green's heading when memory activates: pointing toward
+red, sideways, or away from red. This reveals whether memory preserves a heading
+that pushes the pair together or helps it separate. For example, a negative curve
+in the toward-red panel is consistent with continued pressing into the partner.
+
+The dashed tau=0 control uses **new contact entries** as its reference events,
+since memory never activates. Positive tau also includes timer renewals during
+existing contacts. Thus these curves describe different event groups; they are
+not paired replays of identical encounters.
+
+## Reading a possible result
+
+If plot 1 goes up, plot 2 shifts upward, and plot 3 changes little, the simplest
+interpretation is longer contact episodes, rather than a large change in return
+times. If plot 1 goes down and plot 3 shifts upward, delayed re-encounters may
+contribute. Use the three plots together; one curve alone does not establish sorting.
+
+## Useful options
+
+```bash
+python src/plot_contact_stats.py --data-dir data/contact_stats/fig4/Dr360 --L 3 --wall near
+python src/plot_contact_stats.py --data-dir data/contact_stats/fig4/Dr360 --L 3 --wall away --observable green_away
+```
+
+`--wall near` selects motion events beginning near the wall; `--wall away` selects
+those beginning farther away. `--observable green_away` or `red_away` shows that
+disk's displacement away from the partner's original position, rather than the
+change in pair distance. All plots and CSVs are regenerated from saved runs.
+
+[Recording details and saved-file format](contact_statistics_format.md).
+
+For displacement specifically **after separation**, see the
+[post-separation guide](post_separation.md), including the fixed-time tau=0
+comparison. The activation curves above start from a different event.

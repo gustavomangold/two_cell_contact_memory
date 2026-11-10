@@ -9,6 +9,7 @@ import csv
 from pathlib import Path
 
 import numpy as np
+from post_separation import make_post_recorder, observe_post, finish_post, post_summary
 
 try:
     from numba import njit, types
@@ -21,7 +22,7 @@ except ModuleNotFoundError:
 
 
 Parameters = namedtuple("Parameters", "dt first_step steps epsilon near_wall center_limit wall_strength tau")
-Recorder = namedtuple("Recorder", "parameters state counts lags history responses events trace_steps traces")
+Recorder = namedtuple("Recorder", "parameters state counts lags history responses events trace_steps traces post")
 COUNT_NAMES = ["observations", "contact_steps", "hysteresis_steps", "persistent_steps",
                "activations", "renewals", "new_contacts", "wall_green", "wall_red",
                "clearance_green", "clearance_red"]
@@ -43,7 +44,8 @@ def _rows(width):
     return List.empty_list(types.UniTuple(types.float64, width)) if List is not None else []
 
 
-def make_recorder(settings, epsilon=.01, near_wall=.1, max_lag=2., lag_points=32, trace_points=64):
+def make_recorder(settings, epsilon=.01, near_wall=.1, max_lag=2., lag_points=32, trace_points=64,
+                  post_separation_time=None):
     dt = settings["DT"]
     steps = round(settings["DURATION"] / dt)
     horizon = min(round(max_lag / dt), steps - 1)
@@ -53,10 +55,13 @@ def make_recorder(settings, epsilon=.01, near_wall=.1, max_lag=2., lag_points=32
     params = Parameters(dt, settings["STEADY_STATE_STEPS"] + 1, steps, epsilon,
                         near_wall, settings["ARENA_DIAMETER"] / 2 - .5,
                         settings["WALL_REPULSION"], settings["PERSISTENCE_TIME"])
+    # A zero window disables collection while retaining one Numba-compatible type.
+    post = make_post_recorder(0 if post_separation_time is None else max(1, round(post_separation_time / dt)))
+    capacity = max(int(lags[-1]), min(post.window, steps - 1)) + 1
     return Recorder(params, np.zeros(1, dtype=STATE_DTYPE),
                     np.zeros(1, dtype=[(name, "f8") for name in COUNT_NAMES]),
-                    lags, np.zeros((int(lags[-1]) + 1, 11)),
-                    np.zeros((3, 2, len(lags), 7)), _rows(12), traces, _rows(13))
+                    lags, np.zeros((capacity, 15 if post.window else 11)),
+                    np.zeros((3, 2, len(lags), 7)), _rows(12), traces, _rows(13), post)
 
 
 @njit(cache=True)
@@ -132,6 +137,10 @@ def _observe_python(recorder, step, positions, angles, memory, activated):
         current[7] = 0. if u < -.5 else (2. if u > .5 else 1.)
         current[8] = (1. if near_wall else 0.)
         current[10] = u
+    if recorder.post.window > 0:
+        separated = index > 0 and was_contact and not contact
+        observe_post(recorder, index, positions, angles, memory, distance, separated,
+                     entered, near_wall, wall_green or wall_red)
     # No references exist before the first contact/activation.
     for lag_index in range(len(recorder.lags)):
         lag = recorder.lags[lag_index]
@@ -185,9 +194,16 @@ def finish(recorder):
                    mean_wall_clearance_red=counts["clearance_red"] / n,
                    mean_distance_to_wall_green=counts["clearance_green"] / n + .5,
                    mean_distance_to_wall_red=counts["clearance_red"] / n + .5)
-    return dict(summary=summary, events=np.array(list(recorder.events)).reshape(-1, 12),
+    result = dict(summary=summary, events=np.array(list(recorder.events)).reshape(-1, 12),
                 traces=np.array(list(recorder.traces)).reshape(-1, 13),
                 lags=recorder.lags * params.dt, responses=recorder.responses.copy())
+    if recorder.post.window > 0:
+        finish_post(recorder)
+        result["post_separation"] = np.array(list(recorder.post.events)).reshape(-1, 12)
+        result["fixed_after_separation"] = np.array(list(recorder.post.fixed)).reshape(-1, 11)
+        result["post_separation_window"] = recorder.post.window * params.dt
+        summary.update(post_summary(result["post_separation"], result["fixed_after_separation"]))
+    return result
 
 
 def _run_sample(task):
@@ -203,12 +219,16 @@ def _run_sample(task):
     result = finish(recorder)
     temporary = path.with_suffix(".tmp")
     # One compressed file per independent seed makes resuming atomic and compact.
-    with temporary.open("wb") as file:
-        np.savez_compressed(file, events=result["events"], traces=result["traces"],
+    payload = dict(events=result["events"], traces=result["traces"],
                             lags=result["lags"], responses=result["responses"],
                             metric_names=np.array(list(result["summary"])),
                             metrics=np.array(list(result["summary"].values())),
                             sample=sample, seed=settings["SEED"])
+    for name in ("post_separation", "fixed_after_separation", "post_separation_window"):
+        if name in result:
+            payload[name] = result[name]
+    with temporary.open("wb") as file:
+        np.savez_compressed(file, **payload)
     temporary.replace(path)
     return sample
 
@@ -239,8 +259,12 @@ def main():
     parser.add_argument("--max-lag", type=float, default=2.)
     parser.add_argument("--lag-points", type=int, default=32)
     parser.add_argument("--trace-points", type=int, default=64)
+    parser.add_argument("--post-separation-time", type=float,
+                        help="Enable post-separation measurements and a fixed-time control window of this duration")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    if args.post_separation_time is not None and (not np.isfinite(args.post_separation_time) or args.post_separation_time < args.dt):
+        parser.error("post-separation-time must be finite and at least dt")
     if (not all(np.isfinite(value) for value in [args.L, args.dt, args.duration, args.epsilon, args.near_wall, args.max_lag, args.angular_diffusion])
             or args.L <= 1 or min(args.dt, args.duration, args.max_lag) <= 0
             or min(args.epsilon, args.near_wall, args.seed, args.steady_state_steps, args.angular_diffusion) < 0
@@ -251,9 +275,14 @@ def main():
         taus = tau_grid(args.tau, args.tau_range) if args.tau or args.tau_range else [0., .001, 1., 2.]
     except ValueError as error:
         parser.error(str(error))
-    root = args.output or ROOT / "data" / "contact_stats" / ("reorient" if args.reorient else "no_reorient")
+    data_root = ROOT / "data" / "contact_stats"
+    if args.post_separation_time is not None:
+        data_root = data_root / "post_separation"
+    root = args.output or data_root / ("reorient" if args.reorient else "no_reorient")
     options = dict(epsilon=args.epsilon, near_wall=args.near_wall, max_lag=args.max_lag,
                    lag_points=args.lag_points, trace_points=args.trace_points)
+    if args.post_separation_time is not None:
+        options["post_separation_time"] = args.post_separation_time
     settings = {name: value for name, value in vars(simulation).items()
                 if name.isupper() and isinstance(value, (int, float))}
     settings.update(ARENA_DIAMETER=args.L, REORIENT_ON_CONTACT=args.reorient, DT=args.dt,
@@ -265,7 +294,7 @@ def main():
             folder = root / f"L{args.L:g}_tau{tau:g}"
             folder.mkdir(parents=True, exist_ok=True)
             current = {**settings, "PERSISTENCE_TIME": tau}
-            metadata = dict(settings=current, diagnostics=options, schema=1)
+            metadata = dict(settings=current, diagnostics=options, schema=2 if args.post_separation_time is not None else 1)
             manifest = folder / "settings.json"
             if manifest.exists() and json.loads(manifest.read_text()) != metadata:
                 parser.error(f"Changed settings in {folder}; choose another --output")
@@ -288,6 +317,8 @@ def main():
                             writer.writerow(["sample", "seed", *data["metric_names"]])
                         writer.writerow([sample, int(data["seed"]), *data["metrics"]])
     print(f"Saved diagnostics in {root}. Plot with src/plot_contact_stats.py --data-dir {root}")
+    if args.post_separation_time is not None:
+        print(f"Post-separation plots: src/plot_post_separation.py --data-dir {root}")
 
 
 if __name__ == "__main__":

@@ -31,6 +31,8 @@ and GIF export also needs Pillow.
 | `src/velocity_arrows.py` | Shared arrow drawing helpers |
 | `src/contact_stats.py` | Optional contact, return, activation and wall diagnostics |
 | `src/plot_contact_stats.py` | Survival and activation-conditioned motion plots |
+| `src/post_separation.py` | Optional post-separation measurement helpers |
+| `src/plot_post_separation.py` | Persistent excursions and fixed-time control plots |
 
 The simulation implementations and their defaults are unchanged. The separate
 L/tau sweep wrappers and plotting scripts have been replaced by these commands.
@@ -102,11 +104,17 @@ python src/contact_stats.py --L 3 --tau 0 0.001 1 2 --samples 50 --workers 10
 python src/plot_contact_stats.py --data-dir data/contact_stats/no_reorient --L 3
 ```
 
-Measurements are optional and leave trajectories unchanged. They resolve every
-integration step and save compact per-seed files, with resume support. The three
-plots show contact survival, return survival, and distance changes after activation
-split by initial heading; tau=0 uses contact entries as its reference events.
-See [measurement definitions and options](docs/contact_statistics.md).
+Measurements resolve every integration step and save compact per-seed files with
+resume support. **Start with `contact_fraction.png`: it shows the percentage of
+time the pair spends in contact versus tau**, with the no-memory baseline marked.
+The other plots show how long contacts last, how long returns take, and distance
+changes after activation. See [how to read each plot](docs/contact_statistics.md)
+for concrete examples and commands.
+
+To measure motion after separation, add `--post-separation-time 1` to the
+diagnostic command. New data goes to `data/contact_stats/post_separation/no_reorient/`;
+plot it with `python src/plot_post_separation.py`. See the
+[post-separation guide](docs/post_separation.md) for examples and definitions.
 
 ## No-memory control
 
