@@ -1,5 +1,29 @@
 # Two-cell contact memory
 
+On branch **`exactly-like-paper`**, use the paper commands below. They run the
+published C engine in a periodic square, in the paper's units. Results are kept
+separately in **`data/exactly-like-paper/`** and plots in
+**`figures/exactly-like-paper/`**. The circular-model commands later in this README
+remain available for the earlier experiments.
+
+```bash
+python3 src/paper_sweep.py --samples 50 --workers 10
+python3 src/paper_plot.py
+```
+
+Defaults match Fig. 4's persistence-only model: N=4000, packing fraction 0.4,
+Pe=k=1000, D=360000, D+=0, dt=1e-5, final time 5. To continue the size study:
+
+```bash
+python3 src/paper_sweep.py --sizes 32 64 128 256 512 --samples 50 --workers 10
+```
+
+This requires NumPy, a C compiler and GSL development files; plotting needs
+Matplotlib. Numba is not used by this engine. Runs resume per completed seed.
+**Tau now uses paper units: the earlier tau=1 is tau=0.001 here.** See the
+[paper implementation guide](docs/paper.md) for the exact source, setup, data
+format and a short validation run.
+
 Two active disks in a circular arena, using soft disk and wall forces. Contact
 activates memory in disk 0 (green; purple while active). Disk 1 is red.
 `L` is the arena **diameter in disk diameters**; `tau` is contact-memory time.

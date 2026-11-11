@@ -1,0 +1,15 @@
+{
+  "repository": "https://github.com/mb176/cell_simulation",
+  "revision": "fa2989f7841ea4c8aea0d5691ed0710ee9432da4",
+  "doi": "10.1038/s42005-026-02619-2",
+  "files": {
+    "agent_simulation_config.h": "78c885ca67a4c944e52dbbb14b30d1aa434cb833b67f75b8c3af1828f8fd3b9f",
+    "base_types2D.h": "f98da8905d70ad5e5ccb7666f3be92a5be7fe372d0db6efef47efdb097ddd03e",
+    "cell_simulation.c": "8d52ac78e2f84bd37b0a87eadaa7b838dcb2a59818671d0290b3f27787e526ff",
+    "cell_simulation.h": "90f1e0b3218f01460f885acfd7ddf675684fc5f8569d1793cc2c114762f821ad",
+    "global.h": "addbbbab526c007712d8b9c5e36566899acc589b20574597c9d6ddf41c654c96",
+    "main.c": "5fb256fb60b47de82478c0bc72b9f568b5e739cfa4ed5e0f5009a76de6465962",
+    "xoshiro_rng.c": "710d559531db1690cba80e842e00e70c0e83a587aec3869b821bf44ea599a674",
+    "xoshiro_rng.h": "1861f01771348429c8a55c949f589a0f029c4ba75df417d188a2e94685152574"
+  }
+}

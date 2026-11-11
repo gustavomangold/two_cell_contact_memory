@@ -7,3 +7,4 @@ data/
 figures/
 archived_runs/
 *.zip
+.paper-build/
