@@ -85,19 +85,66 @@ log-spaced recording windows, after warm-up. Continued drift means longer warm-u
 or observation is needed. Change these with `--steady-state-steps` and `--duration`
 in a new output folder. Window means do not reconstruct the discarded warm-up.
 
-## Optional connection to demixing
+## Demixing index from the paper
 
-`--demixing` adds a local same-type preference plot and the fraction of particles
-with neighbors. Neighbors are within 1.1 disk diameters. The raw index is the mean
-same-type neighbor fraction over non-isolated particle-time observations; isolated
-particles are undefined, rather than counted as perfectly sorted.
+```bash
+python3 src/plot_size_scaling.py --data-dir data/size_scaling/constant-density --demixing
+```
+
+This reads saved final positions; **no simulation needs to be rerun**. Open
+`figures/size_scaling/constant-density/demixing_index.png`. The left panel uses
+the paper's Eq. (4): for each disk, divide its number of same-type neighbors by
+its total neighbors, then average these ratios over non-isolated disks. Neighbors
+have center-to-center distance **less than 1.1 disk diameters**, excluding self.
+This is a final-configuration measurement, as in Fig. 4, without a chance
+correction. The right panel shows the fraction of disks that contribute.
+
+The [paper's Methods](https://doi.org/10.1038/s42005-026-02619-2) specify the
+formula, cutoff and final-state measurement. The
+[authors' analysis function](https://github.com/mb176/Cell-Tracking-Analysis/blob/main/analysis_library.py#L682)
+excludes isolated disks. If an entire population has no neighbors, its index is
+undefined (`nan`), not zero or one.
+
+`demixing_samples.csv` saves M and neighbor coverage for all disks, green disks,
+and red disks separately, per seed, along with final time. `demixing_means.csv`
+contains their means, SEM and numbers of contributing runs. Each seed has equal
+weight; runs with an undefined index do not contribute to that index's mean.
+Bands show ±1 SEM. Around 0.5 is the large-population random-mixing reference;
+1 means all observed neighbors have the same type. The pooled index weights each
+eligible disk equally, rather than averaging the two population means.
+
+The older `local_demixing.png` is also retained. It uses the time-averaged index
+over non-isolated particle-time observations, with a chance correction.
 
 Small balanced populations have a random-label baseline of `(N/2-1)/(N-1)`,
 not 0.5. The plot subtracts that baseline and divides by one minus the baseline:
 zero means random-label preference, positive favors same-type neighbors.
 N=2 is excluded from this preference plot because it has no same-type partners.
-Coverage is essential when the systems become dilute. This local time average
-is a diagnostic, not a reproduction of the paper's final-state many-cell heatmap.
+Coverage is essential when the systems become dilute. With N=2 there are no
+same-type partners, so raw M is zero whenever neighbors exist; it cannot measure
+demixing in that case. Matching the statistic alone does not reproduce Fig. 4:
+our confinement, density and observation time still differ from the paper, and
+the final configuration is not automatically a stationary state.
+
+## Visualize a run
+
+```bash
+.venv/bin/python src/make_many_gif.py --N 32 --L 48 --tau 0.001
+```
+
+This reruns one seed with the size-study model and saves a GIF, a final-frame
+PNG, and parameter JSON in `figures/size_scaling/`. There are 16 green and 16 red
+disks; green turns purple while memory is active. Arrows follow displacement
+between displayed frames, enlarged for visibility and capped at 0.65 disk
+diameters. They show frame-averaged motion rather than instantaneous headings.
+
+Defaults record every 50,000 integration steps (0.5 time units), display at most
+300 frames, and omit warm-up. Use `--save-every`, `--max-frames`, `--fps`,
+`--include-warmup` or `--output` to adjust the export. `--seed`, `--duration`,
+`--dt` and `--steady-state-steps` select the run. No contact is forced or required.
+For the density-controlled geometry, omit `--L` and use `--scaling constant-density`
+(N=32 gives L=12). Existing sweep files contain no full trajectories, so this
+exporter simulates a new trajectory rather than loading a sweep sample.
 
 ## Files and resuming
 

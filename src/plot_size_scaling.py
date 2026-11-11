@@ -7,13 +7,14 @@ from pathlib import Path
 
 import numpy as np
 from many_disks import METRICS, normalize
+from demixing import FINAL_METRICS, snapshot_demixing
 from plot_contact_stats import mean_sem, style
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_points(root):
+def load_points(root, demixing=False):
     points = []
     for folder in root.glob("N*_L*_tau*"):
         manifest = folder / "settings.json"
@@ -26,6 +27,8 @@ def load_points(root):
                 if tuple(data["metric_names"]) != METRICS:
                     raise ValueError(f"Unexpected metric columns in {path}")
                 runs.append({key: data[key].copy() for key in data.files})
+            if demixing:
+                runs[-1]["final_demixing"] = snapshot_demixing(runs[-1]["final_positions"])
         if runs:
             mean, sem, n = mean_sem([run["metrics"] for run in runs])
             by_seed = {int(run["seed"]): run["metrics"][0] for run in runs}
@@ -57,10 +60,10 @@ def main():
     parser.add_argument("--output", type=Path, help="Output directory")
     parser.add_argument("--xscale", choices=["linear", "symlog"], default="symlog")
     parser.add_argument("--transient-tau", type=float, help="Also plot contact means versus recording time for this tau")
-    parser.add_argument("--demixing", action="store_true", help="Also plot local same-type preference and neighbor coverage")
+    parser.add_argument("--demixing", action="store_true", help="Also calculate the paper's final-state index and plot local preference")
     args = parser.parse_args()
     try:
-        points = load_points(args.data_dir)
+        points = load_points(args.data_dir, demixing=args.demixing)
     except ValueError as error:
         parser.error(str(error))
     output = args.output or ROOT / "figures" / "size_scaling" / args.data_dir.name
@@ -145,6 +148,52 @@ def main():
         plt.close(fig)
 
     if args.demixing:
+        # Fig. 4 uses final configurations, without the chance correction below.
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4.8), layout="constrained")
+        final_rows, final_samples = [], []
+        for number, color in zip(sizes, colors):
+            group = [point for point in points if point["metadata"]["N"] == number]
+            means, errors = [], []
+            for point in group:
+                mean, sem, n = mean_sem([run["final_demixing"] for run in point["runs"]])
+                means.append(mean)
+                errors.append(sem)
+                meta = point["metadata"]
+                prefix = [number, meta["L"], meta["packing_fraction"], meta["tau"]]
+                for index, name in enumerate(FINAL_METRICS):
+                    final_rows.append([*prefix, name, mean[index], sem[index], n[index], len(point["runs"])])
+                settings = meta["settings"]
+                final_time = (settings["STEADY_STATE_STEPS"] + round(settings["DURATION"] / settings["DT"])) * settings["DT"]
+                for run in point["runs"]:
+                    final_samples.append([*prefix, int(run["sample"]), int(run["seed"]), final_time,
+                                          *run["final_demixing"]])
+            tau = np.array([point["metadata"]["tau"] for point in group])
+            means, errors = np.array(means), np.array(errors)
+            curve(axes[0], tau, means[:, 0], errors[:, 0], color, f"N={number}")
+            curve(axes[1], tau, means[:, 3], errors[:, 3], color, f"N={number}")
+        axis(axes[0], "Final-state demixing index, ⟨M⟩")
+        axes[0].set_ylim(0, 1)
+        axes[0].axhline(.5, color="#64748b", linewidth=.8, linestyle="--")
+        axis(axes[1], "Particles with a neighbor at final time (%)")
+        axes[1].set_ylim(0, 1)
+        axes[1].yaxis.set_major_formatter(PercentFormatter(1))
+        axes[1].legend(frameon=False, fontsize=9)
+        if args.xscale == "symlog" and positive:
+            # Avoid placing a decade label next to zero in the small linear region.
+            ticks = [0., *10. ** np.arange(np.ceil(np.log10(threshold)), np.floor(np.log10(max(positive))) + 1)]
+            for ax in axes:
+                ax.set_xticks(ticks)
+        fig.savefig(output / "demixing_index.png", dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        with (output / "demixing_means.csv").open("w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["N", "L", "packing_fraction", "tau", "metric", "mean", "sem", "runs", "total_runs"])
+            writer.writerows(final_rows)
+        with (output / "demixing_samples.csv").open("w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["N", "L", "packing_fraction", "tau", "sample", "seed", "final_time", *FINAL_METRICS])
+            writer.writerows(final_samples)
+
         fig, axes = plt.subplots(1, 2, figsize=(12, 4.8), layout="constrained")
         for number, color in zip(sizes, colors):
             group = [point for point in points if point["metadata"]["N"] == number]

@@ -36,6 +36,8 @@ and GIF export also needs Pillow.
 | `src/many_disks.py` | Same circular model with equal populations and variable N |
 | `src/sweep_size_scaling.py` | N=2,4,8,16,32 contact-time sweep |
 | `src/plot_size_scaling.py` | Compare contact-time curves across sizes |
+| `src/demixing.py` | Paper's demixing index from saved final configurations |
+| `src/make_many_gif.py` | Size-study GIF and snapshot with displacement arrows |
 
 The simulation implementations and their defaults are unchanged. The separate
 L/tau sweep wrappers and plotting scripts have been replaced by these commands.
@@ -129,6 +131,25 @@ python src/plot_size_scaling.py
 This uses (N,L)=(2,3),(4,6),(8,12),(16,24),(32,48). Doubling diameter halves
 density; `--scaling constant-density` provides a separate density-controlled study.
 See [the size-scaling guide](docs/size_scaling.md) for plot definitions and options.
+
+Calculate the paper's final-state demixing index from an existing size sweep:
+
+```bash
+python3 src/plot_size_scaling.py --data-dir data/size_scaling/constant-density --demixing
+```
+
+This also saves `demixing_index.png`, `demixing_means.csv` and
+`demixing_samples.csv` in `figures/size_scaling/constant-density/`, including
+green/red indices and neighbor coverage in the CSVs. No simulations are rerun.
+
+Visualize one 32-disk run (GIF, final-frame PNG and parameter JSON):
+
+```bash
+.venv/bin/python src/make_many_gif.py --N 32 --L 48 --tau 0.001
+```
+
+Files go to `figures/size_scaling/`. Purple marks active green memory; arrows
+follow displacement between displayed frames. See the guide for recording options.
 
 ## No-memory control
 
