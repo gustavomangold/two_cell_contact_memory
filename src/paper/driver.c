@@ -3,7 +3,35 @@
 #include "upstream/main.c"
 #undef main
 
-void BuildNeighbourList(void);
+void UpstreamBuildNeighbourList(void);
+
+/* Periodic cell offsets alias when there are fewer than three bins per side.
+   Only those small boxes use each unordered pair once. Larger boxes keep the
+   published list and its exact pair order. The upstream sources stay intact. */
+void BuildNeighbourList(void) {
+    if (cells.x >= 3 && cells.y >= 3) {
+        UpstreamBuildNeighbourList();
+        return;
+    }
+    nNeighbourPairs = 0;
+    double cutoff = potentialRange + CELL_SIZE_EXTENSION;
+    for (int i = 0; i < nParticles; i++) {
+        for (int j = i + 1; j < nParticles; j++) {
+            VecR delta;
+            VSub(delta, particles[i].r, particles[j].r);
+            VWrapAllTang(delta);
+            if (VLenSq(delta) < cutoff * cutoff) {
+                if (nNeighbourPairs >= MAX_NEIGHBOUR_PAIRS) {
+                    fprintf(stderr, "Small-box neighbor capacity exceeded\n");
+                    exit(2);
+                }
+                neighbourList[2 * nNeighbourPairs] = i;
+                neighbourList[2 * nNeighbourPairs + 1] = j;
+                nNeighbourPairs++;
+            }
+        }
+    }
+}
 
 static void write_particle(FILE *file, int i, int initial) {
     double values[] = {particles[i].r.x, particles[i].r.y, particles[i].theta,
@@ -14,6 +42,10 @@ static void write_particle(FILE *file, int i, int initial) {
 int main(int argc, char **argv) {
     if (!getenv("PAPER_SEED")) { fprintf(stderr, "PAPER_SEED is required\n"); return 2; }
     SetParameters(argc, argv);
+    printf("Neighbor method: %s\n", cells.x < 3 || cells.y < 3 ? "unique-pairs-small-box" : "upstream-linked-cells");
+    /* AllocArrays also reserves cell-list storage; zero bins are not valid. */
+    if (cells.x < 1) cells.x = 1;
+    if (cells.y < 1) cells.y = 1;
     /* Upstream still makes every measurement call; suppress raw trajectory I/O. */
     fclose(tracksFile);
     tracksFile = fopen("/dev/null", "w");

@@ -7,5 +7,8 @@ https://github.com/mb176/cell_simulation at commit
 `driver.c` calls the original initialization and `SingleStep`, adding compact
 contact measurements and full-precision initial/final state output. The build
 copy replaces the wall-clock seed with `PAPER_SEED`; tracked upstream files stay
-unchanged. No dynamics functions, RNG draws, contact ordering, or GSL minimizer
-are replaced. No fast-math is enabled. See `docs/paper.md` at the repository root.
+unchanged. No force, state-update, RNG or GSL minimization functions are replaced.
+A build copy renames the original neighbor-list entry point to allow dispatch:
+boxes with fewer than three bins per side use unique all-pairs discovery; larger
+boxes retain the original list and order. Tracked upstream files stay unchanged.
+No fast-math is enabled. See `docs/paper.md` at the repository root.

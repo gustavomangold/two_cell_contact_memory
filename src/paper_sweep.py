@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 from demixing import FINAL_METRICS
-from paper_engine import ROOT, DEFAULTS, METRICS, build_engine, run_sample, source_hash
+from paper_engine import ROOT, DEFAULTS, METRICS, build_engine, run_sample, source_hash, neighbor_method
 from sweep import tau_grid
 
 
@@ -49,8 +49,6 @@ def main():
             or args.seed + args.samples - 1 >= 2**32
             or not 20 <= round(args.duration / args.dt) < 2**31 - 1):
         parser.error("Use even N, positive times, 0<packing fraction<=1, nonnegative D, positive counts, uint32 seeds and 20..2^31-2 steps")
-    if any(int(np.sqrt(n * .785398 / args.packing_fraction) / 2) < 3 for n in args.sizes):
-        parser.error("The original linked-cell code needs >=3 cells per side: increase N or reduce packing fraction")
     try:
         taus = tau_grid(args.tau, args.tau_range) if args.tau or args.tau_range else TAUS
         settings = {**DEFAULTS, "dt": args.dt, "duration": args.duration,
@@ -67,7 +65,9 @@ def main():
                 for diffusion in sorted(set(args.D)):
                     for tau in taus:
                         folder = root / f"N{number}_phi{args.packing_fraction:.12g}_D{diffusion:.12g}_tau{tau:.12g}"
-                        metadata = dict(N=number, L=length, D=diffusion, tau=tau, settings=settings)
+                        method = neighbor_method(number, args.packing_fraction)
+                        metadata = dict(N=number, L=length, D=diffusion, tau=tau, settings=settings,
+                                        neighbor_method=method)
                         check_settings(folder / "settings.json", metadata)
                         jobs = []
                         for sample in range(1, args.samples + 1):
@@ -78,13 +78,14 @@ def main():
                                     if (int(data["N"]) != number or float(data["L"]) != length
                                             or float(data["D"]) != diffusion or float(data["tau"]) != tau
                                             or int(data["sample"]) != sample or int(data["seed"]) != seed
+                                            or str(data["neighbor_method"]) != method
                                             or str(data["settings_json"]) != json.dumps(settings, sort_keys=True)
                                             or str(data["source_hash"]) != settings["source_hash"]):
                                         raise ValueError(f"Incompatible paper sample: {path}")
                             else:
                                 jobs.append(pool.submit(run_sample, (number, diffusion, tau, sample, seed,
                                                                      settings, executable, path)))
-                        print(f"N={number}, D={diffusion:g}, tau={tau:g}: {args.samples-len(jobs)}/{args.samples} saved", flush=True)
+                        print(f"N={number}, D={diffusion:g}, tau={tau:g} ({method}): {args.samples-len(jobs)}/{args.samples} saved", flush=True)
                         for job in as_completed(jobs):
                             print(f"  Saved sample {job.result()}", flush=True)
                         temporary = folder / "summary.tmp"

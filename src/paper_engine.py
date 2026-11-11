@@ -33,8 +33,32 @@ def source_hash():
     return digest.hexdigest()
 
 
+def neighbor_method(number, packing_fraction):
+    bins = int(np.sqrt(number * .785398 / packing_fraction) / 2)
+    return "unique-pairs-small-box" if bins < 3 else "upstream-linked-cells"
+
+
+def prepare_source(destination):
+    """Prepare a build copy; tracked upstream files are never edited."""
+    shutil.copytree(SOURCE, destination)
+    config = destination / "upstream/agent_simulation_config.h"
+    text = config.read_text()
+    old = "#define SEED time(NULL);"
+    if text.count(old) != 1:
+        raise ValueError("Unexpected upstream seed definition")
+    config.write_text(text.replace(old, '#define SEED strtoull(getenv("PAPER_SEED"), NULL, 10);'))
+    code = destination / "upstream/cell_simulation.c"
+    text = code.read_text()
+    old = "void BuildNeighbourList(){"
+    if text.count(old) != 1:
+        raise ValueError("Unexpected upstream neighbor-list definition")
+    # Calls go through driver.c, which dispatches by box size. The original
+    # function body is unchanged and still used whenever bins>=3.
+    code.write_text("void BuildNeighbourList(void);\n" + text.replace(old, "void UpstreamBuildNeighbourList(){"))
+
+
 def build_engine(gsl_prefix=None):
-    """Compile once. Only the clock-based seed is replaced in a build copy."""
+    """Compile the original engine plus the small-box list dispatcher once."""
     compiler = shlex.split(os.environ.get("CC", "cc"))
     flags = []
     if gsl_prefix:
@@ -48,13 +72,7 @@ def build_engine(gsl_prefix=None):
     cache.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="compile_", dir=cache) as directory:
         build = Path(directory)
-        shutil.copytree(SOURCE, build / "source")
-        config = build / "source/upstream/agent_simulation_config.h"
-        text = config.read_text()
-        old = "#define SEED time(NULL);"
-        if text.count(old) != 1:
-            raise ValueError("Unexpected upstream seed definition")
-        config.write_text(text.replace(old, '#define SEED strtoull(getenv("PAPER_SEED"), NULL, 10);'))
+        prepare_source(build / "source")
         command = [*compiler, "-O3", "-std=gnu11", *flags, "source/driver.c",
                    "source/upstream/cell_simulation.c", "source/upstream/xoshiro_rng.c",
                    "-lgsl", "-lgslcblas", "-lm", "-o", "paper_engine"]
@@ -121,6 +139,7 @@ def run_sample(task):
                                 final_metric_names=np.array(FINAL_METRICS), final_metrics=final_metrics,
                                 final_time=params["stepLimit"] * settings["dt"], elapsed_time=total * settings["dt"],
                                 settings_json=json.dumps(settings, sort_keys=True), source_hash=source_hash(),
+                                neighbor_method=neighbor_method(number, settings["packing_fraction"]),
                                 parameters_text=(work / "parameters").read_text())
         temporary.replace(path)
     return sample

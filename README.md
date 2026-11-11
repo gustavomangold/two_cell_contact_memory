@@ -15,8 +15,11 @@ Defaults match Fig. 4's persistence-only model: N=4000, packing fraction 0.4,
 Pe=k=1000, D=360000, D+=0, dt=1e-5, final time 5. To continue the size study:
 
 ```bash
-python3 src/paper_sweep.py --sizes 32 64 128 256 512 --samples 50 --workers 10
+python3 src/paper_sweep.py --sizes 4 8 16 32 64 128 256 512 --samples 50 --workers 10
 ```
+
+Small boxes automatically use unique all-pairs neighbor discovery; the original
+linked-cell algorithm is retained for larger boxes.
 
 This requires NumPy, a C compiler and GSL development files; plotting needs
 Matplotlib. Numba is not used by this engine. Runs resume per completed seed.

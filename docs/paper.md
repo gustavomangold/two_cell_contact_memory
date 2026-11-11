@@ -10,7 +10,8 @@ The unchanged sources are in `src/paper/upstream/`, with hashes in
 ## What matches
 
 - Periodic square, including minimum-image interactions and the original box-size calculation.
-- Original harmonic force, linked-cell pair order and shared-contact bookkeeping.
+- Original harmonic force and shared-contact bookkeeping; original linked-cell
+  pair order in boxes with at least three spatial bins per side (see below).
 - Original position, angular-noise, boundary and memory update order.
 - Green-only activation; active timers are not refreshed; no reorientation or adhesion.
 - Original xoshiro256** noise and Box–Muller transform, random positions followed
@@ -56,16 +57,33 @@ python3 src/paper_sweep.py --sizes 32 64 128 256 512 --samples 50 --workers 10
 
 The latter intentionally differs from the paper in particle count. Box side
 length is calculated from N and packing fraction, rather than supplied as L.
-The original linked-cell code requires at least three cells per side; tiny
-systems failing that condition are rejected instead of changing its algorithm.
+For N=4,8,16 at packing fraction 0.4, the box has fewer than three spatial bins
+per side. Periodic bin offsets then alias in the original linked-cell search.
+Those small boxes use an all-pairs neighbor list: each unordered pair appears
+once, with the same periodic minimum-image distance, cutoff and rebuild rule.
+Only neighbor discovery changes; force, noise, contact and timer functions stay
+the original C functions. N>=32 at this density keeps the original linked-cell
+algorithm and pair order, with bit-for-bit regression checks. The selected
+`neighbor_method` is saved in each point's settings and per-seed NPZ file.
+
+The small-box extension evaluates each pair once. The upstream list retained for
+larger boxes includes duplicate entries for particles in the same spatial bin;
+its original multiplicity is deliberately preserved for literal reproducibility.
+Thus small and large systems use different pair-list conventions, even though
+they call the same original force and state-update functions. This distinction
+must be considered when interpreting a size comparison.
+
+```bash
+python3 src/paper_sweep.py --sizes 4 8 16 32 64 128 256 512 --samples 50 --workers 10
+```
 
 Short validation run, kept apart from production data:
 
 ```bash
 python3 src/paper_sweep.py --sizes 32 --tau 0 0.001 --samples 2 --workers 2 \
-  --duration 0.002 --output data/exactly-like-paper/validation
-python3 src/paper_plot.py --data-dir data/exactly-like-paper/validation \
-  --output figures/exactly-like-paper/validation
+  --duration 0.002 --output data/exactly-like-paper/validation-small-boxes
+python3 src/paper_plot.py --data-dir data/exactly-like-paper/validation-small-boxes \
+  --output figures/exactly-like-paper/validation-small-boxes
 ```
 
 This short run checks execution, not steady state. Use `--tau`, repeated
@@ -110,6 +128,9 @@ and otherwise uses a logarithmic scale. Plotting never runs simulations.
 hashes, coefficient conversion and periodic demixing. A regression test compiles
 the original executable and compares initial states, final positions, headings,
 timers, colors and RNG state **bit for bit** against the compact driver for
-N=32,64,128 and several tau values, including zero and timer expiry. GSL/compiler
-are needed for that comparison. Exact archived figure images or the authors'
+N=32,64,128 and several tau values, including zero and timer expiry. Tests also
+check unique pair discovery, minimum-image forces (including a pair across the
+periodic boundary), and successful runs for N=2,4,8,16. Small boxes extend the
+paper's model rather than literally executing its large-system neighbor search.
+GSL/compiler are needed for these checks. Exact archived figure images or the authors'
 unpublished seeds are not reproduced; the published engine and stated protocol are.
