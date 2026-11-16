@@ -33,9 +33,20 @@ def source_hash():
     return digest.hexdigest()
 
 
-def neighbor_method(number, packing_fraction):
-    bins = int(np.sqrt(number * .785398 / packing_fraction) / 2)
-    return "unique-pairs-small-box" if bins < 3 else "upstream-linked-cells"
+def domain_size(number, packing_fraction, boundary="periodic-square"):
+    return float(np.sqrt(number * (1. if boundary == "circular-arena" else .785398) / packing_fraction))
+
+
+def neighbor_method(number, packing_fraction, boundary="periodic-square"):
+    bins = int(domain_size(number, packing_fraction, boundary) / 2)
+    return "unique-pairs-small-box" if bins < 3 else ("arena-linked-cells" if boundary == "circular-arena" else "upstream-linked-cells")
+
+
+def engine_environment(seed, settings):
+    env = {**os.environ, "PAPER_SEED": str(seed)}
+    if settings["boundary"] == "circular-arena":
+        env["PAPER_WALL_STIFFNESS"] = str(settings["wall_stiffness"])
+    return env
 
 
 def prepare_source(destination):
@@ -57,14 +68,19 @@ def prepare_source(destination):
     code.write_text("void BuildNeighbourList(void);\n" + text.replace(old, "void UpstreamBuildNeighbourList(){"))
 
 
-def build_engine(gsl_prefix=None):
-    """Compile the original engine plus the small-box list dispatcher once."""
+def build_engine(gsl_prefix=None, boundary="periodic-square"):
+    """Compile the paper engine with the selected boundary once."""
     compiler = shlex.split(os.environ.get("CC", "cc"))
     flags = []
     if gsl_prefix:
         prefix = Path(gsl_prefix).expanduser().resolve()
         flags = [f"-I{prefix / 'include'}", f"-L{prefix / 'lib'}", f"-Wl,-rpath,{prefix / 'lib'}"]
-    identity = hashlib.sha256(json.dumps([source_hash(), compiler, flags]).encode()).hexdigest()[:20]
+    identity_parts = [source_hash(), compiler, flags]
+    arena = boundary == "circular-arena"
+    if arena:
+        from paper_arena import arena_source_hash, prepare_arena_source
+        identity_parts.append(arena_source_hash())
+    identity = hashlib.sha256(json.dumps(identity_parts).encode()).hexdigest()[:20]
     cache = ROOT / ".paper-build"
     executable = cache / identity / "paper_engine"
     if executable.is_file():
@@ -72,9 +88,10 @@ def build_engine(gsl_prefix=None):
     cache.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="compile_", dir=cache) as directory:
         build = Path(directory)
-        prepare_source(build / "source")
+        (prepare_arena_source if arena else prepare_source)(build / "source")
         command = [*compiler, "-O3", "-std=gnu11", *flags, "source/driver.c",
                    "source/upstream/cell_simulation.c", "source/upstream/xoshiro_rng.c",
+                   *(["source/arena.c"] if arena else []),
                    "-lgsl", "-lgslcblas", "-lm", "-o", "paper_engine"]
         try:
             result = subprocess.run(command, cwd=build, capture_output=True, text=True)
@@ -115,7 +132,7 @@ def run_sample(task):
         log = path.with_suffix(".log")
         with log.open("w") as stream:
             result = subprocess.run([str(executable), "parameters"], cwd=work,
-                                    env={**os.environ, "PAPER_SEED": str(seed)}, stdout=stream, stderr=subprocess.STDOUT)
+                                    env=engine_environment(seed, settings), stdout=stream, stderr=subprocess.STDOUT)
         if result.returncode:
             raise RuntimeError(f"Paper engine failed for sample {sample}; see {log}")
         with (work / "result.bin").open("rb") as file:
@@ -126,9 +143,9 @@ def run_sample(task):
             if file.read(1) or len(rng_state) != 4:
                 raise RuntimeError("Unexpected paper-engine output")
         # Preserve the original engine's rounded pi/4 constant in box sizing.
-        length = np.sqrt(number * .785398 / settings["packing_fraction"])
+        length = domain_size(number, settings["packing_fraction"], settings["boundary"])
         metrics = sums.sum(axis=0) / (total * (number // 2))
-        final_metrics = snapshot_demixing(final[:, :2], box_size=length)
+        final_metrics = snapshot_demixing(final[:, :2], box_size=None if settings["boundary"] == "circular-arena" else length)
         temporary = path.with_suffix(".tmp")
         with temporary.open("wb") as file:
             np.savez_compressed(file, N=number, L=length, D=diffusion, tau=tau, sample=sample, seed=seed,
@@ -139,7 +156,7 @@ def run_sample(task):
                                 final_metric_names=np.array(FINAL_METRICS), final_metrics=final_metrics,
                                 final_time=params["stepLimit"] * settings["dt"], elapsed_time=total * settings["dt"],
                                 settings_json=json.dumps(settings, sort_keys=True), source_hash=source_hash(),
-                                neighbor_method=neighbor_method(number, settings["packing_fraction"]),
+                                neighbor_method=neighbor_method(number, settings["packing_fraction"], settings["boundary"]),
                                 parameters_text=(work / "parameters").read_text())
         temporary.replace(path)
     return sample

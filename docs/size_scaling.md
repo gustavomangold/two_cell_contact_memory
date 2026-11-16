@@ -1,5 +1,23 @@
 # Does the contact-time peak survive with more particles?
 
+**Current constant-density runs use the paper C engine with a circular wall.**
+
+```bash
+python3 src/sweep_size_scaling.py --scaling constant-density \
+  --sizes 2 4 8 16 32 64 128 256 512 --samples 50 --workers 10
+python3 src/paper_plot.py --data-dir data/paper_arena/constant-density
+```
+
+They match the periodic paper model's particle dynamics and defaults in paper
+units, including phi=0.4 and `L=sqrt(N/phi)`. Boundary-specific initialization,
+Euclidean distances and a radial soft wall replace the periodic geometry. See
+[the boundary adapter details](paper.md#paper-dynamics-in-a-circular-arena).
+Results are separated from earlier runs in `data/paper_arena/constant-density/`.
+
+**The remainder describes the legacy model**, used for diameter scaling and for
+`--scaling constant-density --legacy-model`. Existing data in
+`data/size_scaling/constant-density/` still belongs to this older implementation.
+
 This study keeps the same circular arena, disk diameter, speed, translational
 noise, spring forces, and baseline/activated angular diffusion as `two_disks.py`.
 There are equal green/red populations. Reorientation is off. Any red contact can
@@ -62,7 +80,7 @@ peak has disappeared; it may indicate insufficient sampling.
 confinement, and dilution together. To test size while keeping density fixed:
 
 ```bash
-.venv/bin/python src/sweep_size_scaling.py --scaling constant-density --samples 50 --workers 10
+.venv/bin/python src/sweep_size_scaling.py --scaling constant-density --legacy-model --samples 50 --workers 10
 .venv/bin/python src/plot_size_scaling.py --data-dir data/size_scaling/constant-density
 ```
 

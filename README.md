@@ -11,6 +11,42 @@ python3 src/paper_sweep.py --samples 50 --workers 10
 python3 src/paper_plot.py
 ```
 
+For demixing **versus time**, record new time series, then plot selected tau values:
+
+```bash
+python3 src/paper_timeseries.py --sizes 32 --tau 0.001 0.01 1 --samples 50 --workers 10
+python3 src/paper_plot.py --time-series --tau 0.001 0.01 1
+```
+
+This saves compact data and plots in the separate `exactly-like-paper/time_series/`
+subfolders. Existing sweep files only contain final demixing snapshots.
+
+For the **same paper dynamics in a circular arena**, at constant packing fraction:
+
+```bash
+python3 src/sweep_size_scaling.py --scaling constant-density \
+  --sizes 2 4 8 16 32 64 128 256 512 --samples 50 --workers 10
+python3 src/paper_plot.py --data-dir data/paper_arena/constant-density
+```
+
+This now uses paper units and defaults (including packing fraction 0.4), the
+original C collision/noise/memory updates, and a soft circular wall. The arena
+diameter is `sqrt(N/phi)`. New data/plots go to `data/paper_arena/constant-density/`
+and `figures/paper_arena/constant-density/`. Earlier constant-density results use
+the older model; use `--legacy-model` to reproduce those runs. The direct command
+is `paper_sweep.py --boundary circular-arena`. See the guide for wall parameters.
+
+For a GIF of this branch's **periodic paper model**, use:
+
+```bash
+python3 src/paper_gif.py --N 4 --tau 0.001
+```
+
+The existing `make_gif.py` and `make_many_gif.py` still visualize the earlier
+circular model. `paper_gif.py` uses the same Python environment, plus Matplotlib
+and Pillow, and saves to `figures/exactly-like-paper/`. It simulates to paper
+time 5 and shows the final 0.05 time units by default. See the guide for options.
+
 Defaults match Fig. 4's persistence-only model: N=4000, packing fraction 0.4,
 Pe=k=1000, D=360000, D+=0, dt=1e-5, final time 5. To continue the size study:
 
@@ -61,12 +97,13 @@ and GIF export also needs Pillow.
 | `src/post_separation.py` | Optional post-separation measurement helpers |
 | `src/plot_post_separation.py` | Persistent excursions and fixed-time control plots |
 | `src/many_disks.py` | Same circular model with equal populations and variable N |
-| `src/sweep_size_scaling.py` | N=2,4,8,16,32 contact-time sweep |
+| `src/sweep_size_scaling.py` | Paper-arena constant-density sweeps; legacy diameter sweeps |
+| `src/paper_arena.py`, `src/paper_arena.c` | Circular boundary adapter for the paper engine |
 | `src/plot_size_scaling.py` | Compare contact-time curves across sizes |
 | `src/demixing.py` | Paper's demixing index from saved final configurations |
 | `src/make_many_gif.py` | Size-study GIF and snapshot with displacement arrows |
 
-The simulation implementations and their defaults are unchanged. The separate
+The legacy two-disk and many-disk kernels are unchanged. The separate
 L/tau sweep wrappers and plotting scripts have been replaced by these commands.
 `examples/regenerate_gifs.py` retains the earlier GIF recipes, including the
 historical parameter set. Original helper scripts are kept as references in

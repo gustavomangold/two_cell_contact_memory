@@ -62,6 +62,17 @@ def main():
     parser.add_argument("--transient-tau", type=float, help="Also plot contact means versus recording time for this tau")
     parser.add_argument("--demixing", action="store_true", help="Also calculate the paper's final-state index and plot local preference")
     args = parser.parse_args()
+    manifest = args.data_dir / "settings.json"
+    if manifest.exists() and json.loads(manifest.read_text()).get("implementation") == "upstream-c":
+        if args.transient_tau is not None or args.xscale != "symlog":
+            parser.error("Use paper_plot.py for the paper arena; these legacy plotting options require old size-scaling data")
+        from paper_plot import main as paper_plot
+        command = ["--data-dir", str(args.data_dir)]
+        if args.output is not None:
+            command.extend(["--output", str(args.output)])
+        else:
+            command.extend(["--output", str(ROOT / "figures/paper_arena/constant-density")])
+        return paper_plot(command)
     try:
         points = load_points(args.data_dir, demixing=args.demixing)
     except ValueError as error:

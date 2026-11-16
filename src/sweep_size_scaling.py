@@ -1,4 +1,4 @@
-"""Sweep N=2..32 and tau in a circular arena; save statistics, plot separately."""
+"""Size sweeps: paper C dynamics at constant density, or legacy diameter scaling."""
 
 import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -52,20 +52,54 @@ def check_settings(path, metadata):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=[2, 4, 8, 16, 32])
-    parser.add_argument("--base-L", type=float, default=3.)
+    parser.add_argument("--base-L", type=float, help="Legacy N=2 diameter; for the paper arena sets phi=2/base-L²")
     parser.add_argument("--scaling", choices=["diameter", "constant-density"], default="diameter",
-                        help="Default doubles L when N doubles; constant-density uses L=3*sqrt(N/2)")
+                        help="constant-density uses the paper C model in a circular arena")
+    parser.add_argument("--legacy-model", action="store_true", help="Keep the old rescaled model for constant-density runs")
+    parser.add_argument("--packing-fraction", type=float, help="Paper arena density (default: 0.4)")
+    parser.add_argument("--D", type=float, nargs="+", help="Paper rotational diffusion (default: 360000)")
+    parser.add_argument("--wall-stiffness", type=float, help="Paper arena wall stiffness (default: 30000)")
+    parser.add_argument("--gsl-prefix", type=Path)
     parser.add_argument("--tau", type=float, nargs="+")
     parser.add_argument("--tau-range", type=float, nargs=3, action="append")
     parser.add_argument("--samples", type=int, default=50)
     parser.add_argument("--workers", type=int, default=10)
     parser.add_argument("--seed", type=int, default=simulation.SEED)
-    parser.add_argument("--angular-diffusion", type=float, default=simulation.ANGULAR_DIFFUSION)
-    parser.add_argument("--dt", type=float, default=simulation.DT)
-    parser.add_argument("--duration", type=float, default=simulation.DURATION)
-    parser.add_argument("--steady-state-steps", type=int, default=simulation.STEADY_STATE_STEPS)
+    parser.add_argument("--angular-diffusion", type=float, help="Legacy model only; the paper model uses --D")
+    parser.add_argument("--dt", type=float)
+    parser.add_argument("--duration", type=float)
+    parser.add_argument("--steady-state-steps", type=int)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    if args.scaling == "constant-density" and not args.legacy_model:
+        if args.angular_diffusion is not None or args.steady_state_steps not in (None, 0):
+            parser.error("The paper arena uses --D in paper units and no discarded warm-up; use --legacy-model for old settings")
+        if args.base_L is not None and args.packing_fraction is not None:
+            parser.error("Choose either --base-L or --packing-fraction")
+        if args.base_L is not None and (not np.isfinite(args.base_L) or args.base_L <= 1):
+            parser.error("Use finite base-L>1")
+        from paper_sweep import main as paper_sweep
+        command = ["--boundary", "circular-arena", "--sizes", *map(str, args.sizes),
+                   "--samples", str(args.samples), "--workers", str(args.workers), "--seed", str(args.seed)]
+        for name, value in [("--packing-fraction", 2/args.base_L**2 if args.base_L is not None else args.packing_fraction),
+                            ("--dt", args.dt), ("--duration", args.duration),
+                            ("--wall-stiffness", args.wall_stiffness), ("--gsl-prefix", args.gsl_prefix), ("--output", args.output)]:
+            if value is not None:
+                command.extend([name, str(value)])
+        for flag, values in [("--D", args.D), ("--tau", args.tau)]:
+            if values is not None:
+                command.extend([flag, *map(str, values)])
+        for interval in args.tau_range or []:
+            command.extend(["--tau-range", *map(str, interval)])
+        print("Constant-density runs now use the paper C dynamics and PAPER time units; data: data/paper_arena/constant-density by default.", flush=True)
+        return paper_sweep(command)
+    if any(value is not None for value in [args.packing_fraction, args.D, args.wall_stiffness, args.gsl_prefix]):
+        parser.error("Paper parameters require --scaling constant-density without --legacy-model")
+    args.base_L = 3. if args.base_L is None else args.base_L
+    args.angular_diffusion = simulation.ANGULAR_DIFFUSION if args.angular_diffusion is None else args.angular_diffusion
+    args.dt = simulation.DT if args.dt is None else args.dt
+    args.duration = simulation.DURATION if args.duration is None else args.duration
+    args.steady_state_steps = simulation.STEADY_STATE_STEPS if args.steady_state_steps is None else args.steady_state_steps
     if (any(number < 2 or number % 2 for number in args.sizes)
             or not all(np.isfinite(value) for value in [args.base_L, args.angular_diffusion, args.dt, args.duration])
             or args.base_L <= 1 or min(args.dt, args.duration) <= 0 or args.angular_diffusion < 0

@@ -1,0 +1,3 @@
+AUDIT 0 2 -1599.9999999999998
+AUDIT 1 1 -799.99999999999977
+Same separation 0.2; translated together across a bin edge. No simulation files changed.

@@ -1,0 +1,15 @@
+Analyzed 4050 saved runs; 81 parameter points; no simulations run.
+Source hashes: ['2f688bd318ffbed2ebd6fe06648f0c7572a55776e3fa6c6bcf21246a49b1c7eb']
+N 2 M 0.0 psi 0.64887 shuffled 0.64887 green_max/Ngreen 1.0 bootstrap peak .001 None
+N 4 M 0.5448 psi 0.34644 shuffled 0.30477 green_max/Ngreen 0.73 bootstrap peak .001 0.4328
+N 8 M 0.6373 psi 0.17047 shuffled 0.13695 green_max/Ngreen 0.62 bootstrap peak .001 0.57
+N 16 M 0.6209 psi 0.09575 shuffled 0.06527 green_max/Ngreen 0.468 bootstrap peak .001 0.629
+N 32 M 0.6197 psi 0.03487 shuffled 0.0319 green_max/Ngreen 0.329 bootstrap peak .001 0.7192
+N 64 M 0.611 psi 0.0173 shuffled 0.01578 green_max/Ngreen 0.222 bootstrap peak .001 0.4216
+N 128 M 0.6334 psi 0.00928 shuffled 0.00785 green_max/Ngreen 0.146 bootstrap peak .001 0.8556
+N 256 M 0.6318 psi 0.00478 shuffled 0.00392 green_max/Ngreen 0.095 bootstrap peak .001 0.8766
+N 512 M 0.6427 psi 0.0027 shuffled 0.00196 green_max/Ngreen 0.058 bootstrap peak .001 1.0
+Free-ABP dt 1e-05 EM Deff 3.6404564040362954 continuous 2.388888888888889 ratio 1.523911983084961
+Free-ABP dt 5e-06 EM Deff 2.7450840662875144 continuous 2.388888888888889 ratio 1.1491049579808201
+Free-ABP dt 2.5e-06 EM Deff 2.4813971880062597 continuous 2.388888888888889 ratio 1.03872440428169
+Free-ABP dt 1.25e-06 EM Deff 2.412247666787996 continuous 2.388888888888889 ratio 1.009778093074045
