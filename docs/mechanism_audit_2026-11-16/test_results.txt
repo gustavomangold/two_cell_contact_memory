@@ -1,0 +1,22 @@
+test_constant_density_cli_routes_to_paper_arena_and_resumes (test_paper_arena.PaperArenaTests.test_constant_density_cli_routes_to_paper_arena_and_resumes) ... ok
+test_interior_particle_dynamics_and_rng_are_identical (test_paper_arena.PaperArenaTests.test_interior_particle_dynamics_and_rng_are_identical) ... ok
+test_opposite_edges_are_not_neighbors_or_memory_triggers (test_paper_arena.PaperArenaTests.test_opposite_edges_are_not_neighbors_or_memory_triggers) ... ok
+test_packing_fraction_initialization_and_nonperiodic_demixing (test_paper_arena.PaperArenaTests.test_packing_fraction_initialization_and_nonperiodic_demixing) ... ok
+test_wall_is_a_soft_spring_with_configurable_strength (test_paper_arena.PaperArenaTests.test_wall_is_a_soft_spring_with_configurable_strength) ... ok
+test_positions_angles_memory_colors_and_rng_are_bitwise_identical (test_paper_engine.OriginalEngineRegressionTests.test_positions_angles_memory_colors_and_rng_are_bitwise_identical) ... ok
+test_small_box_pairs_are_unique_and_forces_match_minimum_image_formula (test_paper_engine.OriginalEngineRegressionTests.test_small_box_pairs_are_unique_and_forces_match_minimum_image_formula) ... ok
+test_small_systems_run_and_record_their_neighbor_method (test_paper_engine.OriginalEngineRegressionTests.test_small_systems_run_and_record_their_neighbor_method) ... ok
+test_demixing_uses_periodic_neighbors (test_paper_engine.PaperDefinitionTests.test_demixing_uses_periodic_neighbors) ... ok
+test_neighbor_method_depends_on_box_size (test_paper_engine.PaperDefinitionTests.test_neighbor_method_depends_on_box_size) ... ok
+test_paper_parameters_and_noise_amplitude (test_paper_engine.PaperDefinitionTests.test_paper_parameters_and_noise_amplitude) ... ok
+test_vendored_source_is_unmodified (test_paper_engine.PaperDefinitionTests.test_vendored_source_is_unmodified) ... ok
+test_recording_preserves_all_final_states_and_rng (test_paper_movie.PaperMovieTests.test_recording_preserves_all_final_states_and_rng) ... ok
+test_velocity_recording_handles_multiple_periodic_crossings (test_paper_movie.PaperMovieTests.test_velocity_recording_handles_multiple_periodic_crossings) ... ok
+test_cli_records_resumes_and_plots_selected_taus (test_paper_timeseries.PaperTimeSeriesTests.test_cli_records_resumes_and_plots_selected_taus) ... ok
+test_observation_preserves_initial_final_demixing_and_rng (test_paper_timeseries.PaperTimeSeriesTests.test_observation_preserves_initial_final_demixing_and_rng) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 12.779s
+
+OK
+Saved /tmp/paper_arena_tests_t6ryik1f/figures/paper_arena/constant-density/demixing_index_vs_tau.png and paper_means.csv; bands: ±1 SEM.

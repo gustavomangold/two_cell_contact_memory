@@ -1,0 +1,35 @@
+
+BUILD periodic-square
+AUDIT pair translated=0 count=2 fx0=-1600.0000000000005
+AUDIT pair translated=1 count=1 fx0=-800.0000000000008
+AUDIT shared_red reversed=0 step=1 green_colors=2,1
+AUDIT shared_red reversed=0 step=200 green_colors=2,1
+AUDIT shared_red reversed=1 step=1 green_colors=1,2
+AUDIT shared_red reversed=1 step=200 green_colors=1,2
+AUDIT tau_zero after_contact color=2 noise_amplitude=0 timer=0
+AUDIT tau_zero continuous_contact_active_updates=20/20
+AUDIT tau_zero after_next_update_without_contact color=1 noise_amplitude=600
+AUDIT exact_overlap force_finite=0
+
+BUILD circular-arena
+AUDIT pair translated=0 count=2 fx0=-1600.0000000000005
+AUDIT pair translated=1 count=1 fx0=-800.0000000000008
+AUDIT shared_red reversed=0 step=1 green_colors=2,1
+AUDIT shared_red reversed=0 step=200 green_colors=2,1
+AUDIT shared_red reversed=1 step=1 green_colors=1,2
+AUDIT shared_red reversed=1 step=200 green_colors=1,2
+AUDIT tau_zero after_contact color=2 noise_amplitude=0 timer=0
+AUDIT tau_zero continuous_contact_active_updates=20/20
+AUDIT tau_zero after_next_update_without_contact color=1 noise_amplitude=600
+AUDIT exact_overlap force_finite=0
+
+GEOMETRY phi=0.4 (center-area ratio is a geometric reference, not an exact soft-wall density)
+2 diameter 2.23606797749979 outer_area/center_area 3.2725424859373686 periodic_method unique-pairs-small-box arena_method unique-pairs-small-box random_label_M 0.0
+4 diameter 3.1622776601683795 outer_area/center_area 2.1388339901650317 periodic_method unique-pairs-small-box arena_method unique-pairs-small-box random_label_M 0.3333333333333333
+8 diameter 4.47213595499958 outer_area/center_area 1.6589624326869337 periodic_method unique-pairs-small-box arena_method unique-pairs-small-box random_label_M 0.42857142857142855
+16 diameter 6.324555320336759 outer_area/center_area 1.4108904836469038 periodic_method unique-pairs-small-box arena_method arena-linked-cells random_label_M 0.4666666666666667
+32 diameter 8.94427190999916 outer_area/center_area 1.267598703028339 periodic_method upstream-linked-cells arena_method arena-linked-cells random_label_M 0.4838709677419355
+128 diameter 17.88854381999832 outer_area/center_area 1.1219295019191924 periodic_method upstream-linked-cells arena_method arena-linked-cells random_label_M 0.49606299212598426
+512 diameter 35.77708763999664 outer_area/center_area 1.0583359534076917 periodic_method upstream-linked-cells arena_method arena-linked-cells random_label_M 0.49902152641878667
+
+FREE_ABP analytic D_eff continuous= 2.388888888888889 Euler= 3.6404564040362954 ratio= 1.523911983084961

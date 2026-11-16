@@ -1,0 +1,16 @@
+{
+  "legacy_source_hash": "2f688bd318ffbed2ebd6fe06648f0c7572a55776e3fa6c6bcf21246a49b1c7eb",
+  "legacy_arena_hash": "e086e8cf64263ed92a40bc32ade49b9097bbda380b9ef23a3d7d9e445541eddf",
+  "legacy_recorder_hash": "5e26cbc43d915b100fdb9b829462c26af001a8c0df51cb69421e92f08bdc0037",
+  "measurement_hash": "a4936ace70049112c8bba4988171d9a366263a2b7737bdc3b7237888c76b437a",
+  "prepared": {
+    "periodic-square": "b9a2a6b3deb901bec0b13da1dcfef8655d173ea3e33f6480434af2d680077f3f",
+    "periodic-square_frames": "dcb22639db2a36076f67735903b73d2dd8f21f49ed5596866b9432ad610388dd",
+    "circular-arena": "0163303c6f4717d149dee7a2060a2c87fc0e69de4dc41e4014eceb9e80656f5e",
+    "circular-arena_frames": "b8a17421dde53a1e463d19fdf700cace2f535d13ae96f263c5287b248c03c590"
+  },
+  "engine_hash": {
+    "periodic-square": "8bbc31bfed3b9b8c3424431eb83e6380ce44b41f8622704b7125aa8209314789",
+    "circular-arena": "74a9ca4602b7374cff75510a30a8802995c78174dd6d8a6428f04675b05558c2"
+  }
+}

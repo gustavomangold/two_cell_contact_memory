@@ -1,140 +1,128 @@
-"""Export a single simulation, without changing two_disks.py defaults.
-
-Run: python src/make_gif.py --L 3 --tau 0.001 --save-every 2000
-Show the observation interval after warm-up; --include-warmup shows everything.
-Use --contact-window to show an actual encounter. If the default interval has
-no contacts, automatically use a contact window instead.
-"""
+"""Animate the same paper engine used by run.py, with velocity arrows."""
 
 import argparse
+import json
 from pathlib import Path
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation, PillowWriter
-from matplotlib.patches import Circle, Patch
 import numpy as np
-import two_disks as simulation
-from velocity_arrows import motion_velocities, add_velocity_arrows, arrow_components
+import engine
+
+
+def velocities(times, tracks, speed):
+    """Interval-averaged unwrapped velocity; Brownian motion has no instantaneous velocity."""
+    values = np.zeros_like(tracks)
+    values[:-1] = np.diff(tracks,axis=0)/np.diff(times)[:,None,None]
+    values[-1] = values[-2]
+    return values/speed
+
+
+def arrow_components(values):
+    arrows = .35*values
+    lengths = np.linalg.norm(arrows,axis=-1,keepdims=True)
+    arrows *= np.minimum(1.,.65/np.maximum(lengths,1e-12))
+    stationary = np.linalg.norm(values,axis=-1)==0
+    return np.ma.masked_where(stationary,arrows[...,0]), np.ma.masked_where(stationary,arrows[...,1])
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--L", type=float, default=3.)
-    parser.add_argument("--tau", type=float, default=.001)
-    parser.add_argument("--save-every", type=int, default=2000)
-    parser.add_argument("--duration", type=float, default=simulation.DURATION)
-    parser.add_argument("--dt", type=float, default=simulation.DT)
-    parser.add_argument("--steady-state-steps", type=int, default=simulation.STEADY_STATE_STEPS)
-    parser.add_argument("--fps", type=int, default=25)
-    parser.add_argument("--seed", type=int, default=simulation.SEED)
-    parser.add_argument("--reorient", action="store_true")
-    parser.add_argument("--include-warmup", action="store_true")
-    parser.add_argument("--contact-window", action="store_true")
-    parser.add_argument("--pre-contact", type=float, default=3.)
-    parser.add_argument("--post-contact", type=float, default=15.)
-    parser.add_argument("--hold-contact", type=float, default=0.,
-                        help="Pause on the first contact frame for this many playback seconds")
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--boundary",choices=engine.BOUNDARIES,required=True)
+    parser.add_argument("--N",type=int,default=32)
+    parser.add_argument("--D",type=float,default=engine.DEFAULT_DIFFUSION)
+    parser.add_argument("--D-plus",type=float,default=engine.DEFAULTS["D_plus"])
+    parser.add_argument("--tau",type=float,default=.001)
+    parser.add_argument("--packing-fraction",type=float,default=engine.DEFAULTS["packing_fraction"])
+    parser.add_argument("--wall-stiffness",type=float,default=30000.)
+    parser.add_argument("--dt",type=float,default=engine.DEFAULTS["dt"])
+    parser.add_argument("--duration",type=float,default=engine.DEFAULTS["duration"])
+    parser.add_argument("--seed",type=int,default=engine.DEFAULTS["seed"])
+    parser.add_argument("--start",type=float,help="First displayed time; default: final 0.05 time units")
+    parser.add_argument("--save-every",type=int,default=50)
+    parser.add_argument("--max-frames",type=int,default=300)
+    parser.add_argument("--fps",type=int,default=25)
+    parser.add_argument("--gsl-prefix",type=Path)
+    parser.add_argument("--output",type=Path)
     args = parser.parse_args()
-    if (not np.isfinite(args.L) or args.L <= 1 or not np.isfinite(args.tau)
-            or args.tau < 0 or not np.isfinite(args.duration) or args.duration <= 0
-            or not np.isfinite(args.dt) or args.dt <= 0 or args.steady_state_steps < 0
-            or args.seed < 0
-            or args.save_every < 1 or args.fps < 1 or not np.isfinite(args.pre_contact)
-            or args.pre_contact < 0 or not np.isfinite(args.post_contact) or args.post_contact <= 0
-            or not np.isfinite(args.hold_contact) or args.hold_contact < 0):
-        parser.error("Require L>1, tau/pre-contact>=0 and positive duration/save-every/fps/post-contact")
+    start = max(0.,args.duration-.05) if args.start is None else args.start
+    if (args.N<2 or args.N%2 or not all(np.isfinite(v) for v in
+            [args.D,args.D_plus,args.tau,args.packing_fraction,args.wall_stiffness,args.dt,args.duration,start])
+            or min(args.D,args.D_plus,args.tau,start)<0 or min(args.dt,args.duration,args.wall_stiffness)<=0
+            or not 0<args.packing_fraction<=1 or not 0<=start<args.duration
+            or min(args.save_every,args.fps)<1 or args.max_frames<2 or not 0<=args.seed<2**32
+            or not 20<=round(args.duration/args.dt)<2**31-1):
+        parser.error("Use even N>=2, finite valid physics, 0<=start<duration, positive frame settings, uint32 seed and >=20 steps")
+    boundary = engine.BOUNDARIES[args.boundary]
+    output = args.output or engine.figure_directory(boundary)/f"disks_N{args.N}_tau{args.tau:g}.gif"
+    if output.suffix.lower()!=".gif":parser.error("Output must end in .gif")
+    output.parent.mkdir(parents=True,exist_ok=True)
+    settings = engine.make_settings(boundary,args.dt,args.duration,args.packing_fraction,args.seed,args.wall_stiffness,args.D_plus)
+    print(f"Recording {args.boundary}, N={args.N}, tau={args.tau:g}; log: {output.with_suffix('.log')}",flush=True)
+    try:
+        movie = engine.record_motion(args.N,args.D,args.tau,args.seed,settings,start,args.save_every,
+                                     args.max_frames,output.with_suffix(".log"),args.gsl_prefix)
+    except (ValueError,RuntimeError) as error:
+        parser.error(str(error))
 
-    simulation.ARENA_DIAMETER = args.L
-    simulation.PERSISTENCE_TIME = args.tau
-    simulation.SAVE_EVERY = args.save_every
-    simulation.DURATION = args.duration
-    simulation.SEED = args.seed
-    simulation.REORIENT_ON_CONTACT = args.reorient
-    simulation.DT = args.dt
-    simulation.STEADY_STATE_STEPS = args.steady_state_steps
-    times, tracks, persistent, _ = simulation.simulate()
-    velocities = motion_velocities(times, tracks)
-    distances = np.linalg.norm(tracks[:, 0] - tracks[:, 1], axis=1)
-    selected = np.ones(len(times), dtype=bool) if args.include_warmup else (
-        times >= simulation.STEADY_STATE_STEPS * simulation.DT)
-    if args.contact_window or not (distances[selected] < 1).any():
-        contacts = np.flatnonzero(distances < 1)
-        if not len(contacts):
-            parser.error("No recorded contacts; increase --duration or reduce --save-every")
-        contact_time = times[contacts[0]]
-        selected = ((times >= contact_time - args.pre_contact)
-                    & (times <= contact_time + args.post_contact))
-        print(f"Selected actual encounter around t={contact_time:g}", flush=True)
-    times, tracks, persistent, distances = (
-        times[selected], tracks[selected], persistent[selected], distances[selected])
-    velocities = velocities[selected]
-    if not len(times):
-        parser.error("No animation frames; reduce --save-every")
-    contact_frames = np.count_nonzero(distances < 1)
-    if not contact_frames:
-        parser.error("Selected clip has no contact frames")
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FuncAnimation, PillowWriter
+    from matplotlib.collections import EllipseCollection
+    from matplotlib.colors import to_rgba
+    from matplotlib.patches import Circle, Patch
 
-    radius = args.L / 2
-    fig, ax = plt.subplots(figsize=(6, 6))
-    fig.subplots_adjust(bottom=.18, top=.88)
-    ax.add_patch(Circle((0, 0), radius, fill=False, color="#334155", linewidth=1.5))
-    ax.set(xlim=(-radius - .2, radius + .2), ylim=(-radius - .2, radius + .2),
-           xlabel="x / disk diameter", ylabel="y / disk diameter", aspect="equal")
-    disks = [Circle(tracks[0, i], .5, color=color, alpha=.85)
-             for i, color in enumerate(["tab:green", "tab:red"])]
-    for disk in disks:
-        disk.set_edgecolor("#334155")
-        disk.set_linewidth(1.)
-        ax.add_patch(disk)
-    arrows = add_velocity_arrows(ax, tracks[0], velocities[0])
+    times,tracks,length = movie["times"],movie["tracks"],movie["L"]
+    motion = velocities(times,movie["unwrapped"],settings["Pe"])
+    shifts = length*np.array([(x,y) for x in [-1,0,1] for y in [-1,0,1]]) if args.boundary=="pbc" else np.zeros((1,2))
+    palette = np.array([to_rgba(c) for c in ["tab:red","tab:green","tab:purple"]])
+    fig,ax = plt.subplots(figsize=(7,7))
+    fig.subplots_adjust(bottom=.14,top=.89)
+    ax.set(xlim=(0,length),ylim=(0,length),aspect="equal",xlabel="x / disk diameter",ylabel="y / disk diameter")
+    if args.boundary=="arena":ax.add_patch(Circle((length/2,length/2),length/2,fill=False,color="#334155"))
+
+    def offsets(frame):
+        return (tracks[frame][None,:,:]+shifts[:,None,:]).reshape(-1,2)
+
+    def components(frame):
+        u,v = arrow_components(motion[frame])
+        return np.ma.concatenate([u]*len(shifts)), np.ma.concatenate([v]*len(shifts))
+
+    count = len(shifts)*args.N
+    disks = EllipseCollection(np.ones(count),np.ones(count),np.zeros(count),units="xy",
+                              offsets=offsets(0),offset_transform=ax.transData,
+                              facecolors=np.tile(palette[movie["colors"][0]],(len(shifts),1)),
+                              edgecolors="#334155",linewidths=.5,alpha=.85)
+    ax.add_collection(disks)
+    arrows = ax.quiver(*offsets(0).T,*components(0),angles="xy",scale_units="xy",scale=1,
+                       color="#111827",edgecolor="white",linewidth=.25,width=min(.006,.025/length),zorder=3)
     title = ax.set_title("")
-    mode = "Re-orient" if args.reorient else "Do not re-orient"
-    fig.legend(handles=[Patch(color="tab:green", label="Green"),
-                        Patch(color="tab:purple", label="Memory active"),
-                        Patch(color="tab:red", label="Red")],
-               loc="lower center", ncol=3, frameon=False)
+    fig.legend(handles=[Patch(color=c,label=t) for c,t in
+                        [("tab:green","Green"),("tab:purple","Memory active"),("tab:red","Red")]],
+               loc="lower center",ncol=3,frameon=False)
 
     def update(frame):
-        for i, disk in enumerate(disks):
-            disk.center = tracks[frame, i]
-        disks[0].set_color("tab:purple" if persistent[frame] else "tab:green")
-        arrows.set_offsets(tracks[frame])
-        arrows.set_UVC(*arrow_components(velocities[frame]))
-        state = "Contact" if distances[frame] < 1 else "Separated"
-        title.set_text(f"{mode} · L={args.L:g} · τ={args.tau:g}\n"
-                       f"t={times[frame]:.2f} · d/D={distances[frame]:.3f} · {state}")
-        return *disks, arrows, title
+        disks.set_offsets(offsets(frame))
+        disks.set_facecolors(np.tile(palette[movie["colors"][frame]],(len(shifts),1)))
+        arrows.set_offsets(offsets(frame));arrows.set_UVC(*components(frame))
+        title.set_text(f"{args.boundary} · N={args.N} · φ={args.packing_fraction:g} · τ={args.tau:g}\nt={times[frame]:.5f} (paper units)")
+        return disks,arrows,title
 
-    frames = list(range(len(times)))
-    if args.hold_contact:
-        contact = int(np.flatnonzero(distances < 1)[0])
-        frames[contact:contact] = [contact] * round(args.hold_contact * args.fps)
-    animation = FuncAnimation(fig, update, frames=frames, interval=1000 / args.fps,
-                              blit=True)
-    suffix = "reorient" if args.reorient else "no_reorient"
-    output = args.output or (Path(__file__).resolve().parents[1] / "figures" /
-                            f"two_disks_L{args.L:g}_tau{args.tau:g}_{suffix}.gif")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Rendering {len(times)} frames, t={times[0]:g}..{times[-1]:g}, "
-          f"every {args.save_every} steps", flush=True)
-    print(f"Verified {contact_frames} contact frames; minimum d/D={distances.min():.3f}", flush=True)
-
-    def progress(frame, total):
-        if frame % 100 == 0 or frame == total - 1:
-            print(f"Frame {frame + 1}/{total}", flush=True)
-
-    temporary = output.with_name(output.stem + ".rendering.gif")
+    update(len(times)-1)
+    fig.savefig(output.with_suffix(".png"),dpi=120)
+    animation = FuncAnimation(fig,update,frames=len(times),interval=1000/args.fps,blit=True)
+    temporary = output.with_name(output.stem+".rendering.gif")
+    print(f"Rendering {len(times)} frames, t={times[0]:g}..{times[-1]:g}",flush=True)
     try:
-        animation.save(temporary, writer=PillowWriter(fps=args.fps), dpi=75,
-                       progress_callback=progress)
+        animation.save(temporary,writer=PillowWriter(fps=args.fps),dpi=80)
         temporary.replace(output)
     finally:
         temporary.unlink(missing_ok=True)
         plt.close(fig)
-    print(f"Saved {output}")
+    metadata = dict(N=args.N,D=args.D,tau=args.tau,L=length,settings=settings,frames=len(times),
+                    first_time=float(times[0]),last_time=float(times[-1]),save_every=args.save_every,
+                    arrows="mean unwrapped displacement velocity, normalized by Pe for display")
+    output.with_suffix(".json").write_text(json.dumps(metadata,indent=2)+"\n")
+    print(f"Saved {output} and {output.with_suffix('.png')}")
 
 
 if __name__ == "__main__":

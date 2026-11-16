@@ -1,0 +1,6 @@
+Saved unit-aligned comparison; bands/error bars are SEM.
+Old CSV snapshot times: [120.00000000000001]
+Current settings: {'D_plus': 0.0, 'Pe': 1000.0, 'arena_source_hash': 'e086e8cf64263ed92a40bc32ade49b9097bbda380b9ef23a3d7d9e445541eddf', 'boundary': 'circular-arena', 'dt': 1e-05, 'duration': 5.0, 'implementation': 'upstream-c', 'k': 1000.0, 'packing_fraction': 0.4, 'revision': 'fa2989f7841ea4c8aea0d5691ed0710ee9432da4', 'schema': 1, 'seed': 7, 'source_hash': '2f688bd318ffbed2ebd6fe06648f0c7572a55776e3fa6c6bcf21246a49b1c7eb', 'units': 'paper', 'wall_stiffness': 30000.0}
+N 128 tau .01 outer band green/red: 0.733125 0.0853125
+N 512 tau .01 outer band green/red: 0.50765625 0.03375
+N 2048 tau .01 outer band green/red: 0.32119140625 0.01419921875
