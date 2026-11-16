@@ -130,13 +130,14 @@ def main(argv=None):
     style(ax, "Contact-memory time, τ (paper units)", "Final-state demixing index, ⟨M⟩")
     ax.axhline(.5, color="#64748b", linewidth=.8, linestyle="--")
     ax.legend(frameon=False, fontsize=9)
-    fig.savefig(args.output / "paper_comparison.png", dpi=200, bbox_inches="tight")
+    figure = args.output / ("demixing_index_vs_tau.png" if arena else "paper_comparison.png")
+    fig.savefig(figure, dpi=200, bbox_inches="tight")
     plt.close(fig)
     with (args.output / "paper_means.csv").open("w", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(["N", "L", "packing_fraction", "D", "tau", "metric", "mean", "sem", "runs", "total_runs"])
         writer.writerows(rows)
-    print(f"Saved {args.output / 'paper_comparison.png'} and paper_means.csv; bands: ±1 SEM.")
+    print(f"Saved {figure} and paper_means.csv; bands: ±1 SEM.")
 
 
 if __name__ == "__main__":

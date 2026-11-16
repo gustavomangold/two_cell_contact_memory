@@ -5,7 +5,7 @@
 ```bash
 python3 src/sweep_size_scaling.py --scaling constant-density \
   --sizes 2 4 8 16 32 64 128 256 512 --samples 50 --workers 10
-python3 src/paper_plot.py --data-dir data/paper_arena/constant-density
+python3 src/plot_size_scaling.py
 ```
 
 They match the periodic paper model's particle dynamics and defaults in paper
@@ -13,6 +13,9 @@ units, including phi=0.4 and `L=sqrt(N/phi)`. Boundary-specific initialization,
 Euclidean distances and a radial soft wall replace the periodic geometry. See
 [the boundary adapter details](paper.md#paper-dynamics-in-a-circular-arena).
 Results are separated from earlier runs in `data/paper_arena/constant-density/`.
+The default plot is final demixing index versus tau, with one curve per particle
+count and ±1 SEM bands, saved as
+`figures/paper_arena/constant-density/demixing_index_vs_tau.png`.
 
 **The remainder describes the legacy model**, used for diameter scaling and for
 `--scaling constant-density --legacy-model`. Existing data in
@@ -29,7 +32,7 @@ with the same spring force but do not activate memory.
 
 ```bash
 .venv/bin/python src/sweep_size_scaling.py --samples 50 --workers 10
-.venv/bin/python src/plot_size_scaling.py
+.venv/bin/python src/plot_size_scaling.py --data-dir data/size_scaling/diameter
 ```
 
 The default geometry is:
@@ -95,7 +98,7 @@ Default warm-up is 2,000,000 steps (20 time units at DT=0.00001), followed by
 as arena size and encounter times increase. Inspect the saved window means:
 
 ```bash
-.venv/bin/python src/plot_size_scaling.py --transient-tau 0.001
+.venv/bin/python src/plot_size_scaling.py --data-dir data/size_scaling/diameter --transient-tau 0.001
 ```
 
 This adds `contact_fraction_time_tau0.001.png`: contact fractions in successive

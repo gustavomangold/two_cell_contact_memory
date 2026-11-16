@@ -26,7 +26,7 @@ For the **same paper dynamics in a circular arena**, at constant packing fractio
 ```bash
 python3 src/sweep_size_scaling.py --scaling constant-density \
   --sizes 2 4 8 16 32 64 128 256 512 --samples 50 --workers 10
-python3 src/paper_plot.py --data-dir data/paper_arena/constant-density
+python3 src/plot_size_scaling.py
 ```
 
 This now uses paper units and defaults (including packing fraction 0.4), the
@@ -35,6 +35,11 @@ diameter is `sqrt(N/phi)`. New data/plots go to `data/paper_arena/constant-densi
 and `figures/paper_arena/constant-density/`. Earlier constant-density results use
 the older model; use `--legacy-model` to reproduce those runs. The direct command
 is `paper_sweep.py --boundary circular-arena`. See the guide for wall parameters.
+
+The default size-sweep plot is **final demixing index versus tau, one curve per N**,
+with ±1 SEM bands. It uses every saved tau and writes
+`figures/paper_arena/constant-density/demixing_index_vs_tau.png`. The command
+above sweeps the full default paper tau grid; `--tau` selects a different grid.
 
 For a GIF of this branch's **periodic paper model**, use:
 
@@ -99,7 +104,7 @@ and GIF export also needs Pillow.
 | `src/many_disks.py` | Same circular model with equal populations and variable N |
 | `src/sweep_size_scaling.py` | Paper-arena constant-density sweeps; legacy diameter sweeps |
 | `src/paper_arena.py`, `src/paper_arena.c` | Circular boundary adapter for the paper engine |
-| `src/plot_size_scaling.py` | Compare contact-time curves across sizes |
+| `src/plot_size_scaling.py` | Arena demixing versus tau, one curve per N; legacy plots with explicit data folders |
 | `src/demixing.py` | Paper's demixing index from saved final configurations |
 | `src/make_many_gif.py` | Size-study GIF and snapshot with displacement arrows |
 
@@ -189,7 +194,7 @@ To compare the contact peak across particle numbers:
 
 ```bash
 python src/sweep_size_scaling.py --samples 50 --workers 10
-python src/plot_size_scaling.py
+python src/plot_size_scaling.py --data-dir data/size_scaling/diameter
 ```
 
 This uses (N,L)=(2,3),(4,6),(8,12),(16,24),(32,48). Doubling diameter halves

@@ -133,8 +133,10 @@ The pinned sources and periodic engine hash are unchanged. The arena adapter
 has a separate build hash and manifest field. Data is isolated under
 `data/paper_arena/constant-density/`; demixing uses Euclidean distances, and the
 plotter selects `figures/paper_arena/constant-density/` automatically. Both
-`paper_plot.py` and `plot_size_scaling.py --data-dir ...` can plot these final
-demixing curves. Old data is never converted or resumed as this new model.
+`paper_plot.py --data-dir data/paper_arena/constant-density` and the default
+`plot_size_scaling.py` command plot final demixing versus tau, one curve per N,
+using all saved tau values. The figure is named `demixing_index_vs_tau.png`.
+Old data is never converted or resumed as this new model.
 `paper_timeseries.py` and `paper_gif.py` still record the periodic paper model;
 `make_many_gif.py` still uses the legacy circular kernel.
 

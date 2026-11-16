@@ -1,4 +1,4 @@
-"""Compare green contact-time curves across system sizes; plotting runs no simulations."""
+"""Plot arena-sweep demixing versus tau; explicit legacy folders keep their old plots."""
 
 import argparse
 import csv
@@ -56,7 +56,7 @@ def main():
     from matplotlib.ticker import PercentFormatter
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-dir", type=Path, default=ROOT / "data" / "size_scaling" / "diameter")
+    parser.add_argument("--data-dir", type=Path, default=ROOT / "data/paper_arena/constant-density")
     parser.add_argument("--output", type=Path, help="Output directory")
     parser.add_argument("--xscale", choices=["linear", "symlog"], default="symlog")
     parser.add_argument("--transient-tau", type=float, help="Also plot contact means versus recording time for this tau")

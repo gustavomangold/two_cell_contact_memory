@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 from demixing import snapshot_demixing
@@ -180,7 +181,15 @@ class PaperArenaTests(unittest.TestCase):
         self.assertEqual(timestamps,{p:p.stat().st_mtime_ns for p in paths})
         figures=self.root/"figures"
         subprocess.run([sys.executable,str(ROOT/"src/plot_size_scaling.py"),"--data-dir",str(output),"--output",str(figures)],check=True,capture_output=True,text=True)
-        self.assertTrue((figures/"paper_comparison.png").is_file())
+        self.assertTrue((figures/"demixing_index_vs_tau.png").is_file())
+        # The default size-sweep plotting command must select these arena data.
+        import plot_size_scaling
+        default_data = self.root/"data/paper_arena/constant-density"
+        default_data.parent.mkdir(parents=True)
+        default_data.symlink_to(output, target_is_directory=True)
+        with patch.object(plot_size_scaling, "ROOT", self.root), patch.object(sys, "argv", ["plot_size_scaling.py"]):
+            plot_size_scaling.main()
+        self.assertTrue((self.root/"figures/paper_arena/constant-density/demixing_index_vs_tau.png").is_file())
 
 
 if __name__ == "__main__":
