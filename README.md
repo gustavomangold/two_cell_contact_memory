@@ -55,7 +55,7 @@ Changed physics is rejected in an existing folder: choose another `--output`.
 Old C sweep/time-series data can resume when its generated C program and settings
 match the compatibility fingerprints. The cleanup does not convert existing data.
 
-The plotter defaults to `demixing_index_vs_tau.png` under the corresponding
+The plotter saves `demixing_index_vs_tau_<parameters>.png` under the corresponding
 `figures/` folder, plus `plot_means.csv`. Select another observable with
 `--metric contact_fraction`, `persistent_fraction`, or `neighbor_coverage`.
 `--sizes`, `--tau`, `--xscale linear` and `--output` control selection/display.
@@ -65,6 +65,77 @@ Legacy exported means can also be read, for example:
 .venv/bin/python src/plot.py --data-dir figures/size_scaling/constant-density \
   --output figures/legacy_review
 ```
+
+### Matched arena and PBC sweeps at phi=2/9
+
+Run on the remote machine using bash. This uses 11 sizes, the 9 default tau values,
+50 seeds per point, and paper dt=1e-5/duration=5 for both boundaries:
+
+```bash
+for boundary in arena pbc; do
+  .venv/bin/python src/run.py --boundary "$boundary" \
+    --sizes 2 4 8 16 32 64 128 256 512 1024 2048 \
+    --packing-fraction 0.2222222222222222 \
+    --samples 50 --workers 10 --output "data/phi_2over9/$boundary"
+done
+```
+
+Copy `data/phi_2over9/` locally, then plot (Matplotlib required):
+
+```bash
+for boundary in arena pbc; do
+  .venv/bin/python src/plot.py --data-dir "data/phi_2over9/$boundary" \
+    --output "figures/phi_2over9/$boundary"
+done
+```
+
+Each figure is `demixing_index_vs_tau_<parameters>.png`, with one curve per N and ±1 SEM
+bands. Explicit data/figure folders keep this comparison separate from phi=0.4.
+The filename includes the boundary, phi, D, N range, D-plus, Pe, k, timestep,
+duration and (for the arena) wall stiffness. Time-series filenames use the same
+parameter suffix. Output folders and the plotted content are unchanged.
+Append `--dry-run` to the runner command to check before launching.
+
+## Timestep convergence
+
+The arena timestep study keeps phi=2/9, D=360000, D+=0 and physical duration
+0.12 fixed (the old size-scaling snapshot time, converted to paper units).
+It tests dt=`1e-5, 2e-6, 5e-7, 1e-7, 2e-8, 1e-8` at
+tau=`0, 5e-7, 1e-6, 1e-5, 1e-4, 1e-3, 2e-3`, for N=2 through 512,
+doubling N. Each timestep has its own resumable folder; simulation dynamics
+are unchanged. The inherited final time is duration+dt.
+
+Start with a small pilot, then increase sizes and seeds in the same folders:
+
+```bash
+bash scripts/sweep_timestep.sh --sizes 32 --samples 10 --workers 10
+bash scripts/sweep_timestep.sh --samples 50 --workers 10
+```
+
+The finest timestep takes 12 million steps per sample. To run only selected
+timesteps, set `TIMESTEPS="1e-5 2e-6 5e-7"` before the command. `PYTHON` selects
+another interpreter (default `.venv/bin/python`). `DURATION` changes the fixed
+duration and its default output path; `OUTPUT_ROOT` selects a different data root.
+Use `DURATION=5` for a separate convergence study at the current sweep's final time.
+All times above are paper units; old tau=0.0005 corresponds to paper tau=5e-7.
+
+Plot separately, locally if the cluster has no Matplotlib:
+
+```bash
+.venv/bin/python src/plot.py --timestep-sweep \
+  --data-dir data/timestep_sweep/arena_phi2over9_T0.12 \
+  --output figures/timestep_sweep/arena_phi2over9_T0.12
+```
+
+The figure has one panel per N and one curve per dt, with SEM bands; its CSV
+includes dt for every point. Repeat with `--metric neighbor_coverage` or
+`--metric contact_fraction` to check who contributes to M and time spent in contact.
+Convergence means successive refinements agree within uncertainty across tau,
+without a systematic drift. If the low-tau dip returns as dt decreases, the
+timestep contributes to its disappearance. If it does not, investigate the
+other changed contact rules and initialization. This is a finite-time test,
+not a stationarity check; N=2 cannot diagnose demixing and always has M=0
+when defined. Do not pool old and current-engine samples.
 
 ## Demixing versus time
 

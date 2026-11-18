@@ -118,6 +118,82 @@ def group_key(row):
     return row["N"], row["D"], row["packing_fraction"]
 
 
+def parameter_tag(settings, rows):
+    """Keep the boundary and physical parameters visible in saved filenames."""
+    parts = [{"circular-arena":"arena", "periodic-square":"pbc"}.get(settings.get("boundary"),"legacy")]
+    for key,label in [("packing_fraction","phi"),("D","D"),("N","N")]:
+        values = sorted({row[key] for row in rows if row[key]>=0})
+        if values:
+            value = f"{values[0]:.12g}"
+            if len(values)>1: value += f"-{values[-1]:.12g}"
+            parts.append(label+value)
+    for key,label in [("D_plus","Dplus"),("Pe","Pe"),("k","k"),("wall_stiffness","wall"),("dt","dt"),("duration","T")]:
+        if key in settings: parts.append(f"{label}{settings[key]:.12g}")
+    return "_".join(parts)
+
+
+def plot_timesteps(args, plt):
+    """Compare dt folders only when every other simulation setting matches."""
+    rows, common, timesteps = [], None, set()
+    for folder in sorted(args.data_dir.glob("dt*")):
+        manifest = folder/"settings.json"
+        if not manifest.is_file():
+            continue
+        settings = json.loads(manifest.read_text())
+        if "recorder" in settings:
+            raise ValueError("Timestep comparison requires sweep data, not time-series recordings")
+        dt = settings.pop("dt")
+        if common is not None and settings != common:
+            raise ValueError(f"Settings other than dt differ in {folder}; compare one physical protocol at a time")
+        if dt in timesteps:
+            raise ValueError(f"Duplicate timestep {dt:g} in {folder}")
+        common = settings
+        timesteps.add(dt)
+        rows.extend(dict(dt=dt,**row) for row in load_sweep(folder,args.metric,args.sizes,args.tau))
+    if not rows:
+        raise ValueError(f"No timestep sweep results in {args.data_dir}")
+
+    groups = sorted({group_key(row) for row in rows})
+    columns = min(3,len(groups))
+    fig, axes = plt.subplots((len(groups)+columns-1)//columns,columns,squeeze=False,
+                             figsize=(4.2*columns,3.4*((len(groups)+columns-1)//columns)),layout="constrained")
+    colors = plt.get_cmap("viridis")(np.linspace(.05,.85,len(timesteps)))
+    taus = sorted({r["tau"] for r in rows})
+    positive = [t for t in taus if t>0]
+    for key,ax in zip(groups,axes.flat):
+        for dt,color in zip(sorted(timesteps,reverse=True),colors):
+            group = sorted([r for r in rows if group_key(r)==key and r["dt"]==dt],key=lambda r:r["tau"])
+            if not group:
+                continue
+            x,y,e = [np.array([r[name] for r in group]) for name in ["tau","mean","sem"]]
+            ax.plot(x,y,"o-",color=color,ms=3,label=f"Δt={dt:g}")
+            ax.fill_between(x,y-e,y+e,color=color,alpha=.12,lw=0)
+        style(ax,"Contact-memory time, τ (paper units)",args.metric)
+        if args.xscale=="symlog":
+            ax.set_xscale("symlog",linthresh=min(positive) if positive else 1e-5,linscale=.8)
+            ticks = [taus[i] for i in np.linspace(0,len(taus)-1,min(4,len(taus)),dtype=int)]
+            ax.set_xticks(ticks,labels=[f"{t:g}" for t in ticks],fontsize=8)
+        ax.set_xlim(left=0)
+        ax.set_title(f"N={key[0]}, D={key[1]:g}, φ={key[2]:.4g}",fontsize=10)
+    for ax in list(axes.flat)[len(groups):]: ax.set_visible(False)
+    handles,labels = [],[]
+    for ax in axes.flat:
+        h,l = ax.get_legend_handles_labels()
+        for handle,label in zip(h,l):
+            if label not in labels: handles.append(handle); labels.append(label)
+    fig.legend(handles,labels,loc="lower center",bbox_to_anchor=(.5,1.01),ncol=min(3,len(labels)),frameon=False)
+    output = args.output or figure_directory(common["boundary"])/"timestep_sweep"
+    output.mkdir(parents=True,exist_ok=True)
+    tag = parameter_tag(common,rows)+f"_dt{min(timesteps):g}-{max(timesteps):g}"
+    path = output/f"{args.metric}_timestep_{tag}.png"
+    fig.savefig(path,dpi=200,bbox_inches="tight")
+    plt.close(fig)
+    with (output/f"timestep_means_{tag}.csv").open("w",newline="") as file:
+        writer = csv.DictWriter(file,fieldnames=list(rows[0]))
+        writer.writeheader();writer.writerows(rows)
+    print(f"Saved {path}\nBands: ±1 SEM across seeds; compare successive refinements for convergence.")
+
+
 def main():
     import matplotlib
     matplotlib.use("Agg")
@@ -129,10 +205,15 @@ def main():
     parser.add_argument("--metric",choices=LABELS,default="demixing_index")
     parser.add_argument("--sizes",type=int,nargs="+")
     parser.add_argument("--tau",type=float,nargs="+")
-    parser.add_argument("--time-series",action="store_true",help="Normally detected from the data manifest")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--time-series",action="store_true",help="Normally detected from the data manifest")
+    mode.add_argument("--timestep-sweep",action="store_true",help="Compare dt subfolders, with one panel per N and one curve per timestep")
     parser.add_argument("--xscale",choices=["symlog","linear"],default="symlog")
     args = parser.parse_args()
     try:
+        if args.timestep_sweep:
+            plot_timesteps(args,plt)
+            return
         manifest = args.data_dir / "settings.json"
         settings = json.loads(manifest.read_text()) if manifest.is_file() else {}
         time_series = args.time_series or "recorder" in settings
@@ -148,7 +229,8 @@ def main():
                 style(ax,"Time (paper units)",args.metric)
                 ax.set_xlim(0,max(p[1][-1] for p in group))
                 ax.legend(title=f"N={key[0]}, D={key[1]:g}",frameon=False,fontsize=9)
-                path = output / f"{args.metric}_time_N{key[0]}_D{key[1]:g}.png"
+                tag = parameter_tag(settings,[p[0] for p in group])
+                path = output / f"{args.metric}_time_{tag}.png"
                 fig.savefig(path,dpi=200,bbox_inches="tight")
                 plt.close(fig)
                 print(f"Saved {path}")
@@ -173,7 +255,8 @@ def main():
             units = "paper units" if settings.get("units")=="paper" or (args.data_dir/"paper_means.csv").is_file() else "legacy units"
             style(ax,f"Contact-memory time, τ ({units})",args.metric)
             ax.legend(frameon=False,fontsize=9)
-            path = output / f"{args.metric}_vs_tau.png"
+            tag = parameter_tag(settings,rows)
+            path = output / f"{args.metric}_vs_tau_{tag}.png"
             fig.savefig(path,dpi=200,bbox_inches="tight")
             plt.close(fig)
             print(f"Saved {path}")

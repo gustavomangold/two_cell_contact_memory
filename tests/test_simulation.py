@@ -146,7 +146,8 @@ for boundary in ['periodic-square','circular-arena']:
         self.assertIn("incompatible settings",wrong.stderr)
         figures = self.work/"sweep_figures"
         self.cli("plot.py","--data-dir",folder,"--output",figures)
-        self.assertTrue((figures/"demixing_index_vs_tau.png").is_file())
+        image, = figures.glob("demixing_index_vs_tau_arena_phi0.4_*.png")
+        self.assertIn("_dt1e-05_T0.0002",image.name)
         with (figures/"plot_means.csv").open() as file: rows=list(csv.DictReader(file))
         self.assertEqual(len(rows),6)
 
@@ -158,7 +159,8 @@ for boundary in ['periodic-square','circular-arena']:
             self.assertEqual(len(list(folder.glob("N*/sample_*.npz"))),6)
             figures = self.work/f"time_figures_{short}"
             self.cli("plot.py","--data-dir",folder,"--output",figures)
-            self.assertTrue((figures/"demixing_index_time_N32_D360000.png").is_file())
+            image, = figures.glob(f"demixing_index_time_{short}_phi0.4_D360000_N32_*.png")
+            self.assertIn("_dt1e-05_T0.0002",image.name)
             with (figures/"plot_means.csv").open() as file: rows=list(csv.DictReader(file))
             self.assertEqual(len(rows),15)
 
@@ -170,6 +172,46 @@ for boundary in ['periodic-square','circular-arena']:
                      "--duration",.002,"--save-every",5,"--max-frames",5,"--output",path)
             with Image.open(path) as image:self.assertEqual(image.n_frames,5)
             self.assertTrue(path.with_suffix(".png").is_file())
+
+    def test_timestep_sweep_resumes_and_comparison_rejects_mixed_physics(self):
+        folder = self.work/"timestep_sweep"
+        arguments = ["bash",str(engine.ROOT/"scripts/sweep_timestep.sh"),"--sizes","4","32",
+                     "--tau","0","5e-7","1e-5","--samples","2","--workers","2"]
+        environment = {**os.environ,"PYTHON":sys.executable,"DURATION":"0.0002",
+                       "TIMESTEPS":"1e-5 5e-6","OUTPUT_ROOT":str(folder)}
+        result = subprocess.run([*arguments,"--dry-run"],env=environment,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertFalse(folder.exists())
+        for iteration in range(2):
+            result = subprocess.run(arguments,env=environment,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            paths = list(folder.glob("dt*/N*/sample_*.npz"))
+            self.assertEqual(len(paths),24)
+            if iteration: self.assertEqual(before,{p:p.stat().st_mtime_ns for p in paths})
+            before = {p:p.stat().st_mtime_ns for p in paths}
+        figures = self.work/"timestep_figures"
+        self.cli("plot.py","--data-dir",folder,"--timestep-sweep","--output",figures)
+        image, = figures.glob("demixing_index_timestep_arena_phi0.222222222222_*.png")
+        self.assertIn("_dt5e-06-1e-05",image.name)
+        means, = figures.glob("timestep_means_*.csv")
+        with means.open() as file: rows=list(csv.DictReader(file))
+        self.assertEqual(len(rows),12)
+        self.assertEqual({float(r["dt"]) for r in rows},{1e-5,5e-6})
+        import plot
+        for dt,label in [(1e-5,"1e-5"),(5e-6,"5e-6")]:
+            source = plot.load_sweep(folder/f"dt{label}","demixing_index",None,None)
+            for row in source:
+                saved, = [r for r in rows if float(r["dt"])==dt and int(r["N"])==row["N"] and float(r["tau"])==row["tau"]]
+                np.testing.assert_equal(float(saved["mean"]),row["mean"])
+                np.testing.assert_equal(float(saved["sem"]),row["sem"])
+        manifest = folder/"dt5e-6/settings.json"
+        settings = json.loads(manifest.read_text())
+        settings["duration"] *= 2
+        manifest.write_text(json.dumps(settings))
+        result = subprocess.run([sys.executable,str(engine.ROOT/"src/plot.py"),"--data-dir",str(folder),
+                                 "--timestep-sweep","--output",str(figures)],capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn("Settings other than dt differ",result.stderr)
 
     def test_simulation_imports_need_no_matplotlib_pillow_or_numba(self):
         code = '''import builtins
